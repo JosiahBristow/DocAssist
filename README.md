@@ -27,12 +27,23 @@ docassist/
 └── docs/                   作品说明书、汇报 PPT、演示脚本
 ```
 
+## 功能预览
+
+| 首页 | 参考文献格式校对 |
+| :---: | :---: |
+| ![首页](docs/img/app-home.png) | ![格式校对](docs/img/app-cite.png) |
+
+| 英文文献校对（外文体例转国标） | API 设置（BYOK 自带密钥） |
+| :---: | :---: |
+| ![英文校对](docs/img/app-cite-en.png) | ![设置页](docs/img/app-settings.png) |
+
 ## 三步跑起来
 
 ### 1. 本地自测（不需要小程序账号）
 
 ```bash
-cd ~/Documents/docassist
+git clone https://github.com/JosiahBristow/DocAssist.git
+cd DocAssist
 npm install
 npm run preview             # 浏览器打开 http://127.0.0.1:5178
 ```
@@ -43,7 +54,7 @@ npm run preview             # 浏览器打开 http://127.0.0.1:5178
 
 ### 2. 小程序端
 
-1. 微信开发者工具 → 新建项目 → 目录选 `~/Documents/docassist`（AppID 填自己的；
+1. 微信开发者工具 → 新建项目 → 目录选本仓库根目录（AppID 填自己的；
    没有可先用「测试号」跑通页面，发布体验版必须有自己的 AppID）。
 2. 打开「云开发」→ 新建环境（基础版免费）。
 3. 右键 `cloudfunctions/docai` → **上传并部署：云端安装依赖**。
