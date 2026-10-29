@@ -1,0 +1,10 @@
+{
+  "name": "docai",
+  "version": "1.0.0",
+  "description": "文献助手云函数：PDF 解析 + 论文速读 + 学术翻译",
+  "main": "index.js",
+  "dependencies": {
+    "pdf-parse": "^1.1.1",
+    "wx-server-sdk": "~2.6.3"
+  }
+}

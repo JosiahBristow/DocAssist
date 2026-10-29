@@ -1,0 +1,9 @@
+.row { display: flex; gap: 16rpx; }
+.half { flex: 1; }
+.btn-mini { flex: 1; text-align: center; }
+.dst { font-size: 28rpx; line-height: 1.8; color: #17233D; }
+.src { font-size: 24rpx; line-height: 1.7; color: #66708A; }
+.src-label { font-size: 21rpx; color: #939CB2; margin-bottom: 8rpx; }
+.term-row { display: flex; justify-content: space-between; padding: 12rpx 0; border-bottom: 1rpx solid #EDF0F7; }
+.term-en { font-size: 24rpx; color: #17233D; flex: 1; }
+.term-zh { font-size: 24rpx; color: #2B6CF6; }

@@ -1,0 +1,118 @@
+<view class="page">
+
+  <!-- 未开始 -->
+  <block wx:if="{{stage === 'idle'}}">
+    <view class="card">
+      <view class="card-title">上传一篇 PDF</view>
+      <view wx:if="{{!hasKey}}" class="needkey">速读使用你自己的 API Key，<text class="link" bindtap="goSettings">去配置</text></view>
+      <view class="muted">在聊天窗口里选中文件即可上传（可从微信「文件传输助手」发给自己）。支持英文/中文论文，20MB 以内。</view>
+      <view style="height:24rpx"></view>
+      <view class="btn btn-primary" bindtap="chooseFile">选择 PDF 文件</view>
+    </view>
+    <view class="card">
+      <view class="card-title">它会给你什么</view>
+      <view class="muted">① 一句话读懂　② 研究问题 / 方法 / 数据 / 结论　③ 创新点与局限　④ 术语对照表　⑤ 自动抽出参考文献，直接进入格式校对</view>
+    </view>
+  </block>
+
+  <!-- 处理中 -->
+  <block wx:if="{{stage === 'running'}}">
+    <view class="card center">
+      <view class="spinner"></view>
+      <view style="height:20rpx"></view>
+      <view class="card-title">{{fileName}}</view>
+      <view class="muted">{{stepText}}</view>
+    </view>
+  </block>
+
+  <!-- 失败 -->
+  <block wx:if="{{stage === 'error'}}">
+    <view class="card">
+      <view class="card-title err">处理失败</view>
+      <view class="muted">{{errorMsg}}</view>
+      <view style="height:24rpx"></view>
+      <view class="btn btn-ghost" bindtap="retry">重新选择文件</view>
+    </view>
+  </block>
+
+  <!-- 完成 -->
+  <block wx:if="{{stage === 'done'}}">
+    <view class="card">
+      <view class="muted">{{fileName}} · {{pages}} 页 · {{chars}} 字</view>
+      <view class="hl-title">{{summary.title}}</view>
+      <view class="one-line">{{summary.one_line}}</view>
+      <view class="tags">
+        <text class="tag" wx:for="{{summary.keywords}}" wx:key="*this">{{item}}</text>
+      </view>
+    </view>
+
+    <view class="tabs">
+      <view class="tab {{tab === 'quick' ? 'on' : ''}}" data-tab="quick" bindtap="switchTab">要点</view>
+      <view class="tab {{tab === 'full' ? 'on' : ''}}" data-tab="full" bindtap="switchTab">结构</view>
+      <view class="tab {{tab === 'terms' ? 'on' : ''}}" data-tab="terms" bindtap="switchTab">术语</view>
+    </view>
+
+    <!-- 要点 -->
+    <block wx:if="{{tab === 'quick'}}">
+      <view class="card">
+        <view class="sec-label">研究问题</view>
+        <view class="sec-body">{{summary.problem}}</view>
+        <view class="divider"></view>
+        <view class="sec-label">方法</view>
+        <view class="sec-body">{{summary.method}}</view>
+        <view class="divider"></view>
+        <view class="sec-label">数据与实验</view>
+        <view class="sec-body">{{summary.data}}</view>
+      </view>
+      <view class="card">
+        <view class="sec-label">主要结论</view>
+        <view class="li" wx:for="{{summary.results}}" wx:key="*this">
+          <text class="li-dot">·</text><text class="li-text">{{item}}</text>
+        </view>
+      </view>
+    </block>
+
+    <!-- 结构 -->
+    <block wx:if="{{tab === 'full'}}">
+      <view class="card">
+        <view class="sec-label">创新点</view>
+        <view class="li" wx:for="{{summary.contributions}}" wx:key="*this">
+          <text class="li-dot">·</text><text class="li-text">{{item}}</text>
+        </view>
+        <view class="divider"></view>
+        <view class="sec-label">局限</view>
+        <view class="li" wx:for="{{summary.limitations}}" wx:key="*this">
+          <text class="li-dot">·</text><text class="li-text">{{item}}</text>
+        </view>
+      </view>
+      <view class="card">
+        <view class="sec-label">可借鉴之处</view>
+        <view class="li" wx:for="{{summary.usable}}" wx:key="*this">
+          <text class="li-dot">·</text><text class="li-text">{{item}}</text>
+        </view>
+      </view>
+    </block>
+
+    <!-- 术语 -->
+    <block wx:if="{{tab === 'terms'}}">
+      <view class="card">
+        <view class="sec-label">术语对照（{{summary.terms.length}} 条）</view>
+        <view class="term" wx:for="{{summary.terms}}" wx:key="en">
+          <view class="term-en">{{item.en}}</view>
+          <view class="term-zh">{{item.zh}}</view>
+          <view class="term-note">{{item.note}}</view>
+        </view>
+        <view wx:if="{{summary.terms.length === 0}}" class="muted">这篇论文没有可提取的专业术语。</view>
+      </view>
+    </block>
+
+    <view class="card">
+      <view class="btn btn-ghost" bindtap="goCite">检查这篇论文的参考文献（{{refs.length}} 条）</view>
+      <view style="height:16rpx"></view>
+      <view class="btn btn-primary" bindtap="copySummary">复制速读结果</view>
+      <view style="height:16rpx"></view>
+      <view class="btn btn-ghost" bindtap="retry">再读一篇</view>
+    </view>
+    <view class="footnote">生成耗时 {{costMs}} ms · 内容由 AI 依据原文生成，引用前请核对原文。</view>
+  </block>
+</view>

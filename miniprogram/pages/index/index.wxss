@@ -1,0 +1,6 @@
+.hero-sub { white-space: pre-line; }
+.keybar { display: flex; align-items: center; background: #FFF8E8; }
+.keybar-icon { font-size: 34rpx; margin-right: 18rpx; }
+.keybar-body { flex: 1; }
+.keybar-title { font-size: 27rpx; font-weight: 600; color: #8A5A00; }
+.keybar-desc { font-size: 22rpx; color: #A4781F; margin-top: 6rpx; line-height: 1.5; }

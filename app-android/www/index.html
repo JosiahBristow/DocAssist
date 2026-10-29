@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1B3A8C">
+<title>文献助手</title>
+<style>
+  :root{
+    --bg:#F4F6FB; --card:#fff; --ink:#17233D; --ink2:#66708A; --ink3:#939CB2;
+    --pri:#2B6CF6; --pri-soft:#EEF3FF; --deep:#1B3A8C;
+    --ok:#12B76A; --warn:#F2A33A; --err:#E5484D; --line:#EDF0F7;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+    font-size:14px; display:flex; flex-direction:column; overflow:hidden;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  header{
+    flex:0 0 auto; background:var(--deep); color:#fff;
+    padding:calc(env(safe-area-inset-top) + 10px) 14px 12px;
+    display:flex; align-items:center; gap:8px;
+  }
+  #back{font-size:22px;line-height:1;width:22px;cursor:pointer;opacity:.95}
+  #navtitle{font-size:17px;font-weight:600}
+  main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .screen{padding:14px 14px 60px}
+
+  .card{background:var(--card);border-radius:14px;padding:15px;margin-bottom:12px;box-shadow:0 2px 8px rgba(23,35,61,.05)}
+  .card-title{font-size:15px;font-weight:600;margin-bottom:6px}
+  .muted{color:var(--ink2);font-size:12.5px;line-height:1.65}
+  .footnote{font-size:11.5px;color:var(--ink3);line-height:1.7;padding:0 2px 16px}
+  .divider{height:1px;background:var(--line);margin:12px 0}
+  .btn{height:44px;line-height:44px;border-radius:10px;text-align:center;font-size:15px;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--pri);color:#fff}
+  .btn-ghost{background:var(--pri-soft);color:var(--pri)}
+  .btn-mini{display:inline-block;padding:0 12px;height:32px;line-height:32px;border-radius:8px;font-size:12.5px;background:var(--pri-soft);color:var(--pri);margin:0 8px 8px 0;cursor:pointer}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
+  .center{text-align:center;padding:26px 0}
+  .tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11.5px;background:var(--pri-soft);color:var(--pri);margin:0 6px 6px 0}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+  .zh{color:var(--pri)}
+
+  .hero{padding:18px;border-radius:14px;background:linear-gradient(135deg,#1B3A8C 0%,#2B6CF6 100%);color:#fff;margin-bottom:14px}
+  .hero h1{margin:0;font-size:23px;letter-spacing:1px}
+  .hero p{margin:7px 0 0;font-size:12.5px;opacity:.88;line-height:1.6;white-space:pre-line}
+  .entry{display:flex;align-items:center;gap:12px;cursor:pointer}
+  .entry:active{transform:scale(.995)}
+  .entry-icon{width:42px;height:42px;border-radius:11px;background:var(--pri-soft);display:flex;align-items:center;justify-content:center;font-size:20px}
+  .entry-body{flex:1}
+  .entry-title{font-size:15px;font-weight:600}
+  .entry-desc{margin-top:3px;font-size:12px;color:var(--ink2);line-height:1.5}
+  .entry-arrow{color:#B7BFD2;font-size:20px}
+  .stat-row{display:flex;gap:10px;margin:6px 0 14px}
+  .stat{flex:1;background:#fff;border-radius:12px;padding:11px;text-align:center;box-shadow:0 2px 8px rgba(23,35,61,.05)}
+  .stat-num{font-size:20px;font-weight:700;color:var(--pri)}
+  .stat-label{font-size:11.5px;color:var(--ink2);margin-top:2px}
+
+  textarea,input[type=text],input[type=password]{
+    width:100%;border:none;background:#F8FAFE;border-radius:10px;padding:10px 12px;
+    font-size:13px;line-height:1.7;font-family:inherit;color:var(--ink);outline:none;
+  }
+  textarea{min-height:150px;resize:vertical}
+  input[type=password],input[type=text]{height:44px}
+  textarea::placeholder,input::placeholder{color:#A9B2C6}
+
+  .spinner{width:26px;height:26px;margin:0 auto;border:3px solid var(--pri-soft);border-top-color:var(--pri);border-radius:50%;animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .hl-title{font-size:16px;font-weight:700;line-height:1.5;margin-top:6px}
+  .one-line{margin-top:8px;padding:10px 12px;background:var(--pri-soft);border-radius:8px;color:var(--deep);font-size:13px;line-height:1.6}
+  .tabs{display:flex;background:#fff;border-radius:10px;padding:4px;margin-bottom:12px}
+  .tab{flex:1;text-align:center;padding:8px 0;font-size:13px;color:var(--ink2);border-radius:8px;cursor:pointer}
+  .tab.on{background:var(--pri-soft);color:var(--pri);font-weight:600}
+  .sec-label{font-size:11.5px;color:var(--pri);font-weight:600;margin-bottom:4px}
+  .sec-body{font-size:13px;line-height:1.75;color:#2A3550}
+  .li{display:flex;gap:6px;margin-bottom:6px;font-size:13px;line-height:1.7}
+  .li b{color:var(--pri);font-weight:400}
+  .term{padding:8px 0;border-bottom:1px solid var(--line)}
+  .term-en{font-size:12.5px;font-weight:600}
+  .term-zh{font-size:12.5px;color:var(--pri);margin-top:2px}
+  .term-note{font-size:11.5px;color:var(--ink2);margin-top:2px}
+  .file-input{display:none}
+
+  .sum-row{display:flex;margin-bottom:8px}
+  .sum-item{flex:1;text-align:center}
+  .sum-num{font-size:20px;font-weight:700}
+  .sum-label{font-size:11.5px;color:var(--ink2)}
+  .item{background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;border-left:4px solid var(--ok);cursor:pointer;box-shadow:0 2px 8px rgba(23,35,61,.04)}
+  .item.mid{border-left-color:var(--warn)} .item.bad{border-left-color:var(--err)}
+  .item-head{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .item-no{width:20px;height:20px;line-height:20px;text-align:center;background:var(--pri-soft);color:var(--pri);border-radius:5px;font-size:11px}
+  .item-type{flex:1;font-size:11.5px;color:var(--ink2)}
+  .item-score{font-size:12px;font-weight:600}
+  .convbadge{font-size:9.5px;color:#1B7F5B;background:#E6F7F0;border-radius:5px;padding:1px 6px}
+  .convnote{margin-top:6px;font-size:11.5px;color:#1B7F5B;background:#F2FAF6;border-radius:8px;padding:7px 9px;line-height:1.6}
+  .item-orig{font-size:13px;line-height:1.7;color:#2A3550;overflow-wrap:anywhere}
+  .prob{display:flex;gap:6px;margin-bottom:7px}
+  .prob .dot{width:14px;font-size:12px}
+  .prob-rule{font-size:12.5px;font-weight:600}
+  .prob-hint{font-size:11.5px;color:var(--ink2);line-height:1.6;margin-top:2px}
+  .fixed-box{background:#F2FAF6;border-radius:8px;padding:9px 11px;margin-top:6px}
+  .fixed-label{font-size:10.5px;color:var(--ok);margin-bottom:4px}
+  .fixed-text{font-size:13px;line-height:1.7;color:#16322A;overflow-wrap:anywhere;margin-bottom:6px}
+
+  .term-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+  .dst{font-size:13.5px;line-height:1.8}
+  .src{font-size:12px;line-height:1.7;color:var(--ink2)}
+  .src-label{font-size:10.5px;color:var(--ink3);margin-bottom:4px}
+  .needkey{margin-top:8px;padding:9px 11px;background:#FFF8E8;border-radius:8px;font-size:11.5px;color:#8A5A00;line-height:1.55}
+
+  .toast{
+    position:fixed;left:50%;bottom:70px;transform:translateX(-50%);max-width:80%;
+    background:rgba(23,35,61,.92);color:#fff;font-size:13px;line-height:1.6;
+    padding:10px 14px;border-radius:10px;text-align:center;opacity:0;pointer-events:none;
+    transition:opacity .18s;z-index:99;
+  }
+  .toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <span id="back" hidden>‹</span>
+  <span id="navtitle">文献助手</span>
+</header>
+
+<main>
+  <!-- ============ 首页 ============ -->
+  <section class="screen" id="screen-home">
+    <div class="hero">
+      <h1>文献助手</h1>
+      <p>读不懂的英文文献、写不对的参考文献
+一个入口，全部解决</p>
+    </div>
+
+    <div class="card entry" onclick="DA.go('read')">
+      <div class="entry-icon">📄</div>
+      <div class="entry-body">
+        <div class="entry-title">论文速读</div>
+        <div class="entry-desc">选一份 PDF，得到一句话总结、研究方法、核心结论与术语表</div>
+      </div>
+      <div class="entry-arrow">›</div>
+    </div>
+
+    <div class="card entry" onclick="DA.go('cite')">
+      <div class="entry-icon">🧾</div>
+      <div class="entry-body">
+        <div class="entry-title">参考文献格式校对</div>
+        <div class="entry-desc">18 条国标规则逐条判定，外文文献自动转国标，离线可用</div>
+      </div>
+      <div class="entry-arrow">›</div>
+    </div>
+
+    <div class="card entry" id="keybar" hidden onclick="DA.go('settings')" style="background:#FFF8E8">
+      <div class="entry-icon" style="background:#FFF0D0">🔑</div>
+      <div class="entry-body">
+        <div class="entry-title" style="color:#8A5A00">配置你自己的 API Key</div>
+        <div class="entry-desc" style="color:#A4781F">速读与翻译需要你的 DeepSeek Key；格式校对不需要，可以直接用</div>
+      </div>
+      <div class="entry-arrow">›</div>
+    </div>
+
+    <div class="card entry" onclick="DA.go('translate')">
+      <div class="entry-icon">🌐</div>
+      <div class="entry-body">
+        <div class="entry-title">学术翻译</div>
+        <div class="entry-desc">术语先对齐再翻译，同一术语全文译名一致</div>
+      </div>
+      <div class="entry-arrow">›</div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="stat-num" id="st-papers">0</div><div class="stat-label">已速读论文</div></div>
+      <div class="stat"><div class="stat-num" id="st-fixed">0</div><div class="stat-label">已修正格式问题</div></div>
+    </div>
+
+    <div class="card entry" onclick="DA.go('settings')">
+      <div class="entry-icon">⚙️</div>
+      <div class="entry-body">
+        <div class="entry-title">API 设置</div>
+        <div class="entry-desc" id="keystate">尚未配置，速读与翻译暂不可用</div>
+      </div>
+      <div class="entry-arrow">›</div>
+    </div>
+
+    <div class="footnote">支持有文字层的 PDF；扫描版暂不支持。文献内容仅用于本次生成，不做长期保存。</div>
+  </section>
+
+  <!-- ============ 论文速读 ============ -->
+  <section class="screen" id="screen-read" hidden>
+    <div id="read-idle">
+      <div class="card">
+        <div class="card-title">选一份 PDF</div>
+        <div class="muted">从手机文件里选，25MB 以内。也可以先看格式校对——那个功能不需要 Key。</div>
+        <div id="read-needkey" class="needkey"></div>
+        <div style="height:10px"></div>
+        <div class="btn btn-primary" onclick="document.getElementById('pdfpick').click()">选择 PDF 文件</div>
+        <input class="file-input" type="file" id="pdfpick" accept="application/pdf" onchange="DA.onPickFile(event)">
+      </div>
+      <div class="card">
+        <div class="card-title">它会给你什么</div>
+        <div class="muted">① 一句话读懂　② 研究问题 / 方法 / 数据 / 结论　③ 创新点与局限　④ 术语对照表　⑤ 自动抽出参考文献并转成国标</div>
+      </div>
+    </div>
+
+    <div id="read-running" hidden>
+      <div class="card center">
+        <div class="spinner"></div>
+        <div style="height:10px"></div>
+        <div class="card-title" id="read-file">paper.pdf</div>
+        <div class="muted" id="read-step">正在解析 PDF…</div>
+      </div>
+    </div>
+
+    <div id="read-error" hidden>
+      <div class="card">
+        <div class="card-title err">处理失败</div>
+        <div class="muted" id="read-errmsg"></div>
+        <div style="height:10px"></div>
+        <div class="btn btn-ghost" onclick="DA.go('read', false)">重新选择</div>
+      </div>
+    </div>
+
+    <div id="read-done" hidden>
+      <div class="card">
+        <div class="muted" id="read-meta"></div>
+        <div class="hl-title" id="r-title"></div>
+        <div class="one-line" id="r-oneline"></div>
+        <div style="margin-top:8px" id="r-tags"></div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab on" data-tab="quick" onclick="DA.readTab('quick')">要点</div>
+        <div class="tab" data-tab="full" onclick="DA.readTab('full')">结构</div>
+        <div class="tab" data-tab="terms" onclick="DA.readTab('terms')">术语</div>
+      </div>
+
+      <div id="tab-quick">
+        <div class="card">
+          <div class="sec-label">研究问题</div><div class="sec-body" id="r-problem"></div>
+          <div class="divider"></div>
+          <div class="sec-label">方法</div><div class="sec-body" id="r-method"></div>
+          <div class="divider"></div>
+          <div class="sec-label">数据与实验</div><div class="sec-body" id="r-data"></div>
+        </div>
+        <div class="card"><div class="sec-label">主要结论</div><div id="r-results"></div></div>
+      </div>
+
+      <div id="tab-full" hidden>
+        <div class="card">
+          <div class="sec-label">创新点</div><div id="r-contrib"></div>
+          <div class="divider"></div>
+          <div class="sec-label">局限</div><div id="r-limits"></div>
+        </div>
+        <div class="card"><div class="sec-label">可借鉴之处</div><div id="r-usable"></div></div>
+      </div>
+
+      <div id="tab-terms" hidden>
+        <div class="card"><div class="sec-label" id="r-terms-label">术语对照</div><div id="r-terms"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="btn btn-ghost" id="btn-refs" onclick="DA.goCiteFromPdf()">检查这篇论文的参考文献</div>
+        <div style="height:8px"></div>
+        <div class="btn btn-primary" onclick="DA.copySummary()">复制速读结果</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 格式校对 ============ -->
+  <section class="screen" id="screen-cite" hidden>
+    <div class="card">
+      <div class="card-title">粘贴参考文献</div>
+      <div class="muted">从 Word、知网或英文论文里整段复制，一行一条，不用整理编号。英文论文的参考文献（ACL / IEEE 体例）会自动识别并转换为国标格式。</div>
+      <div style="height:8px"></div>
+      <textarea id="cite-input" placeholder="例：[1] 周志华. 机器学习[M]. 北京: 清华大学出版社, 2016."></textarea>
+      <div style="height:8px"></div>
+      <div class="row">
+        <div class="btn btn-ghost" onclick="DA.loadSample()">中文示例</div>
+        <div class="btn btn-ghost" onclick="DA.loadSampleEn()">英文示例</div>
+      </div>
+      <div style="height:8px"></div>
+      <div class="btn btn-primary" onclick="DA.runCite()">开始检查</div>
+      <div class="footnote" style="padding-top:8px">校验依据 GB/T 7714-2015，纯本地规则计算，断网也能用。</div>
+    </div>
+    <div id="cite-result"></div>
+  </section>
+
+  <!-- ============ 翻译 ============ -->
+  <section class="screen" id="screen-translate" hidden>
+    <div class="card">
+      <div class="card-title">粘贴英文段落</div>
+      <div class="muted">先抽取术语并统一译名，再逐段翻译，避免同一术语前后译法不一致。</div>
+      <div style="height:8px"></div>
+      <textarea id="tr-input" placeholder="Abstract / Introduction / 任意一段英文都可以"></textarea>
+      <div style="height:8px"></div>
+      <div class="btn btn-primary" onclick="DA.runTranslate()">翻译</div>
+    </div>
+    <div id="tr-result"></div>
+  </section>
+
+  <!-- ============ 设置 ============ -->
+  <section class="screen" id="screen-settings" hidden>
+    <div class="card">
+      <div class="card-title">使用你自己的 API Key</div>
+      <div class="muted">速读与翻译直连 DeepSeek，费用走你自己的账户。Key 只保存在这台手机上，不上传服务器。</div>
+      <div class="divider"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span id="state-dot" style="color:#B7BFD2">●</span>
+        <span id="state-text" class="muted" style="flex:1">尚未配置</span>
+        <span class="btn-mini" style="margin:0" onclick="DA.clearKey()">清除</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">填写 Key</div>
+      <input type="password" id="key-input" placeholder="sk-................（粘贴后点击保存）">
+      <div style="height:8px"></div>
+      <div class="row">
+        <div class="btn btn-ghost" onclick="DA.testKey()">测试连接</div>
+        <div class="btn btn-primary" onclick="DA.saveKey()">保存到本机</div>
+      </div>
+      <div id="key-test" class="muted" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">还没有 Key？</div>
+      <div class="muted">① 打开 platform.deepseek.com 注册登录　② 进入「API keys」创建 Key　③ 复制（以 sk- 开头，只显示一次）　④ 回到本页粘贴保存。</div>
+      <div class="divider"></div>
+      <div class="muted">费用参考：单篇论文速读约消耗 2–6 千 tokens，按现行价格约几分钱；格式校对不消耗 tokens。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">高级：自定义接口地址</div>
+      <div class="muted">默认 DeepSeek 官方接口。也支持任何 OpenAI 兼容服务（如硅基流动、智谱），需包含 /v1。</div>
+      <div style="height:8px"></div>
+      <input type="text" id="base-input" placeholder="https://api.deepseek.com/v1">
+      <div style="height:8px"></div>
+      <div class="btn btn-ghost" onclick="DA.saveBase()">保存接口地址</div>
+    </div>
+
+    <div class="footnote">不要把 Key 发到群聊或截图里；本应用不会上传你的 Key，也无法读取你在其他应用里的 Key。</div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

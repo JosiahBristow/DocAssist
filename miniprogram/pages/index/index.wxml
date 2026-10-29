@@ -1,0 +1,64 @@
+<view class="page">
+  <view class="hero">
+    <view class="hero-title">文献助手</view>
+    <view class="hero-sub">读不懂的英文文献、写不对的参考文献\n一个入口，全部解决</view>
+  </view>
+
+  <view class="card entry" bindtap="goRead">
+    <view class="entry-icon">📄</view>
+    <view class="entry-body">
+      <view class="entry-title">论文速读</view>
+      <view class="entry-desc">上传 PDF，得到一句话总结、研究方法、核心结论与术语表</view>
+    </view>
+    <view class="entry-arrow">›</view>
+  </view>
+
+  <view class="card entry" bindtap="goCite">
+    <view class="entry-icon">🧾</view>
+    <view class="entry-body">
+      <view class="entry-title">参考文献格式校对</view>
+      <view class="entry-desc">按 GB/T 7714-2015 逐条检查，一键修正并导出规范文献表</view>
+    </view>
+    <view class="entry-arrow">›</view>
+  </view>
+
+  <view wx:if="{{!hasKey}}" class="card keybar" bindtap="goSettings">
+    <view class="keybar-icon">🔑</view>
+    <view class="keybar-body">
+      <view class="keybar-title">配置你自己的 API Key</view>
+      <view class="keybar-desc">速读与翻译需要你的 DeepSeek Key；格式校对不需要，可以直接用</view>
+    </view>
+    <view class="entry-arrow">›</view>
+  </view>
+
+  <view class="card entry" bindtap="goTranslate">
+    <view class="entry-icon">🌐</view>
+    <view class="entry-body">
+      <view class="entry-title">学术翻译</view>
+      <view class="entry-desc">术语先对齐再翻译，同一术语全文译名一致</view>
+    </view>
+    <view class="entry-arrow">›</view>
+  </view>
+
+  <view class="stat-row">
+    <view class="stat">
+      <view class="stat-num">{{stats.papers}}</view>
+      <view class="stat-label">已速读论文</view>
+    </view>
+    <view class="stat">
+      <view class="stat-num">{{stats.fixed}}</view>
+      <view class="stat-label">已修正格式问题</view>
+    </view>
+  </view>
+
+  <view class="card entry" bindtap="goSettings">
+    <view class="entry-icon">⚙️</view>
+    <view class="entry-body">
+      <view class="entry-title">API 设置</view>
+      <view class="entry-desc">{{hasKey ? '已配置：' + keyMasked : '尚未配置，速读与翻译暂不可用'}}</view>
+    </view>
+    <view class="entry-arrow">›</view>
+  </view>
+
+  <view class="footnote">支持有文字层的 PDF（知网/arXiv 导出的均可）；扫描版 PDF 暂不支持。所有文献内容仅用于本次生成，不做长期保存。</view>
+</view>

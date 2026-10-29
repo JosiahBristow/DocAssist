@@ -1,0 +1,40 @@
+.row { display: flex; gap: 16rpx; margin-bottom: 12rpx; flex-wrap: wrap; }
+.half { flex: 1; }
+.hint { margin-top: 12rpx; font-size: 22rpx; color: #2B6CF6; }
+.summary { }
+.sum-row { display: flex; margin-bottom: 14rpx; }
+.sum-item { flex: 1; text-align: center; }
+.sum-num { font-size: 40rpx; font-weight: 700; }
+.sum-label { font-size: 22rpx; color: #66708A; margin-top: 4rpx; }
+
+.item { background: #fff; border-radius: 20rpx; padding: 22rpx; margin-bottom: 18rpx; border-left: 8rpx solid #12B76A; }
+.item.mid { border-left-color: #F2A33A; }
+.item.bad { border-left-color: #E5484D; }
+.item-head { display: flex; align-items: center; margin-bottom: 12rpx; }
+.item-no {
+  width: 40rpx; height: 40rpx; line-height: 40rpx; text-align: center;
+  background: #EEF3FF; color: #2B6CF6; border-radius: 10rpx; font-size: 22rpx; margin-right: 12rpx;
+}
+.item-type { flex: 1; font-size: 23rpx; color: #66708A; }
+.item-score { font-size: 24rpx; font-weight: 600; }
+.badge {
+  font-size: 19rpx; color: #1B7F5B; background: #E6F7F0;
+  border-radius: 8rpx; padding: 2rpx 10rpx; margin-right: 10rpx;
+}
+.convnote {
+  margin-top: 10rpx; font-size: 22rpx; color: #1B7F5B;
+  background: #F2FAF6; border-radius: 10rpx; padding: 12rpx 14rpx; line-height: 1.6;
+}
+.item-orig { font-size: 25rpx; line-height: 1.7; color: #2A3550; word-break: normal; overflow-wrap: anywhere; }
+.more { margin-top: 10rpx; }
+
+.prob { display: flex; margin-bottom: 14rpx; }
+.dot { width: 32rpx; font-size: 24rpx; }
+.dot.error { color: #E5484D; } .dot.warn { color: #F2A33A; } .dot.info { color: #66708A; }
+.prob-body { flex: 1; }
+.prob-rule { font-size: 25rpx; font-weight: 600; }
+.prob-hint { font-size: 22rpx; color: #66708A; line-height: 1.6; margin-top: 4rpx; }
+
+.fixed-box { background: #F2FAF6; border-radius: 14rpx; padding: 16rpx; margin-top: 10rpx; }
+.fixed-label { font-size: 21rpx; color: #12B76A; margin-bottom: 8rpx; }
+.fixed-text { font-size: 25rpx; line-height: 1.7; color: #16322A; word-break: normal; overflow-wrap: anywhere; margin-bottom: 12rpx; }

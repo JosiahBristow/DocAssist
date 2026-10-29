@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文献助手 · 小程序交互预览</title>
+<style>
+  :root{
+    --bg:#F4F6FB; --card:#fff; --ink:#17233D; --ink2:#66708A; --ink3:#939CB2;
+    --pri:#2B6CF6; --pri-soft:#EEF3FF; --deep:#1B3A8C;
+    --ok:#12B76A; --warn:#F2A33A; --err:#E5484D; --line:#EDF0F7;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(1200px 600px at 20% 0%,#e8eefc 0%,#f2f5fa 45%,#eef1f7 100%);
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif; color:var(--ink);
+    padding:32px 16px; gap:28px; flex-wrap:wrap;
+  }
+  /* 手机外框 */
+  .phone{
+    width:390px; height:844px; background:var(--bg); border-radius:44px; position:relative;
+    box-shadow:0 30px 80px rgba(20,35,70,.22), 0 0 0 12px #10131a, 0 0 0 14px #2a3040;
+    overflow:hidden; display:flex; flex-direction:column;
+  }
+  .statusbar{
+    height:44px; display:flex; align-items:center; justify-content:space-between;
+    padding:0 26px; font-size:13px; font-weight:600; color:#fff; background:var(--deep); flex:0 0 auto;
+  }
+  .navbar{
+    height:48px; background:var(--deep); color:#fff; display:flex; align-items:center;
+    padding:0 18px; font-size:16px; font-weight:600; flex:0 0 auto; position:relative;
+  }
+  .navbar .back{position:absolute; left:14px; font-size:20px; opacity:.9; cursor:pointer; display:none}
+  .navbar.center{justify-content:center}
+  .navbar.title-left{padding-left:44px}
+  .screen{flex:1; overflow-y:auto; padding:16px 16px 80px; scroll-behavior:smooth}
+  .screen::-webkit-scrollbar{width:0}
+
+  /* 通用 */
+  .card{background:var(--card); border-radius:16px; padding:16px; margin-bottom:12px; box-shadow:0 2px 10px rgba(23,35,61,.05)}
+  .card-title{font-size:15px;font-weight:600;margin-bottom:8px}
+  .muted{color:var(--ink2);font-size:12px;line-height:1.6}
+  .footnote{font-size:11px;color:var(--ink3);line-height:1.7;padding:0 4px 20px}
+  .divider{height:1px;background:var(--line);margin:12px 0}
+  .btn{height:44px;line-height:44px;border-radius:10px;text-align:center;font-size:15px;font-weight:600;cursor:pointer;user-select:none}
+  .btn-primary{background:var(--pri);color:#fff}
+  .btn-ghost{background:var(--pri-soft);color:var(--pri)}
+  .btn-mini{display:inline-block;padding:0 12px;height:32px;line-height:32px;border-radius:8px;font-size:12.5px;background:var(--pri-soft);color:var(--pri);margin:0 8px 8px 0;cursor:pointer}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
+  .center{text-align:center;padding:28px 0}
+  .tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;background:var(--pri-soft);color:var(--pri);margin:0 6px 6px 0}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+  .banner{background:#FFF7E8;color:#8A5A00;font-size:11.5px;padding:8px 16px;text-align:center;border-bottom:1px solid #F6E4BE}
+
+  /* 首页 */
+  .hero{padding:18px 18px 20px;border-radius:16px;background:linear-gradient(135deg,#1B3A8C 0%,#2B6CF6 100%);color:#fff;margin-bottom:14px}
+  .hero h1{margin:0;font-size:23px;letter-spacing:1px}
+  .hero p{margin:7px 0 0;font-size:12px;opacity:.85;line-height:1.6;white-space:pre-line}
+  .entry{display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .12s}
+  .entry:active{transform:scale(.99)}
+  .entry-icon{width:44px;height:44px;border-radius:12px;background:var(--pri-soft);display:flex;align-items:center;justify-content:center;font-size:21px}
+  .entry-body{flex:1}
+  .entry-title{font-size:15.5px;font-weight:600}
+  .entry-desc{margin-top:4px;font-size:11.5px;color:var(--ink2);line-height:1.5}
+  .entry-arrow{color:#B7BFD2;font-size:22px}
+  .stat-row{display:flex;gap:10px;margin:6px 0 14px}
+  .stat{flex:1;background:#fff;border-radius:14px;padding:12px;text-align:center;box-shadow:0 2px 10px rgba(23,35,61,.05)}
+  .stat-num{font-size:21px;font-weight:700;color:var(--pri)}
+  .stat-label{font-size:11px;color:var(--ink2);margin-top:3px}
+
+  /* 输入 */
+  textarea{width:100%;min-height:132px;background:#F8FAFE;border:none;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.7;font-family:inherit;color:var(--ink);resize:vertical;outline:none}
+  textarea::placeholder{color:#A9B2C6}
+
+  /* 速读 */
+  .spinner{width:28px;height:28px;margin:0 auto;border:3px solid var(--pri-soft);border-top-color:var(--pri);border-radius:50%;animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .hl-title{font-size:16px;font-weight:700;line-height:1.5;margin-top:6px}
+  .one-line{margin-top:8px;padding:10px 12px;background:var(--pri-soft);border-radius:8px;color:var(--deep);font-size:13px;line-height:1.6}
+  .tabs{display:flex;background:#fff;border-radius:10px;padding:4px;margin-bottom:12px}
+  .tab{flex:1;text-align:center;padding:8px 0;font-size:13px;color:var(--ink2);border-radius:8px;cursor:pointer}
+  .tab.on{background:var(--pri-soft);color:var(--pri);font-weight:600}
+  .sec-label{font-size:11.5px;color:var(--pri);font-weight:600;margin-bottom:5px}
+  .sec-body{font-size:13px;line-height:1.75;color:#2A3550}
+  .li{display:flex;gap:6px;margin-bottom:6px;font-size:13px;line-height:1.7}
+  .li b{color:var(--pri);font-weight:400}
+  .term{padding:8px 0;border-bottom:1px solid var(--line)}
+  .term-en{font-size:12.5px;font-weight:600}
+  .term-zh{font-size:12.5px;color:var(--pri);margin-top:2px}
+  .term-note{font-size:11px;color:var(--ink2);margin-top:3px}
+  .file-input{display:none}
+
+  /* 校对 */
+  .sum-row{display:flex;margin-bottom:8px}
+  .sum-item{flex:1;text-align:center}
+  .sum-num{font-size:21px;font-weight:700}
+  .sum-label{font-size:11px;color:var(--ink2)}
+  .item{background:#fff;border-radius:14px;padding:12px;margin-bottom:10px;border-left:4px solid var(--ok);cursor:pointer;box-shadow:0 2px 10px rgba(23,35,61,.04)}
+  .item.mid{border-left-color:var(--warn)} .item.bad{border-left-color:var(--err)}
+  .item-head{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .item-no{width:20px;height:20px;line-height:20px;text-align:center;background:var(--pri-soft);color:var(--pri);border-radius:5px;font-size:11px}
+  .item-type{flex:1;font-size:11.5px;color:var(--ink2)}
+  .item-score{font-size:12px;font-weight:600}
+  .convbadge{font-size:9.5px;color:#1B7F5B;background:#E6F7F0;border-radius:5px;padding:1px 6px;margin-right:6px}
+  .convnote{margin-top:6px;font-size:11px;color:#1B7F5B;background:#F2FAF6;border-radius:8px;padding:7px 9px;line-height:1.6}
+  .item-orig{font-size:12.5px;line-height:1.7;color:#2A3550;overflow-wrap:anywhere}
+  .prob{display:flex;gap:6px;margin-bottom:7px}
+  .prob .dot{width:14px;font-size:12px}
+  .prob-rule{font-size:12.5px;font-weight:600}
+  .prob-hint{font-size:11px;color:var(--ink2);line-height:1.6;margin-top:2px}
+  .fixed-box{background:#F2FAF6;border-radius:8px;padding:9px 11px;margin-top:6px}
+  .fixed-label{font-size:10.5px;color:var(--ok);margin-bottom:4px}
+  .fixed-text{font-size:12.5px;line-height:1.7;color:#16322A;overflow-wrap:anywhere;margin-bottom:6px}
+
+  /* 翻译 */
+  .term-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+  .dst{font-size:13.5px;line-height:1.8}
+  .src{font-size:12px;line-height:1.7;color:var(--ink2)}
+  .src-label{font-size:10.5px;color:var(--ink3);margin-bottom:4px}
+
+  /* 侧栏说明 */
+  .aside{width:260px;font-size:12.5px;line-height:1.8;color:#3c4a66}
+  .aside h3{font-size:14px;margin:0 0 8px}
+  .aside code{background:#e7ecf7;padding:1px 4px;border-radius:4px;font-size:11.5px}
+  .aside .step{margin-bottom:7px}
+  .badge{display:inline-block;background:#dfe7f8;border-radius:6px;padding:2px 7px;font-size:11px;margin-bottom:10px}
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="statusbar"><span>9:41</span><span>文献助手 · 预览</span><span>100%</span></div>
+  <div class="navbar center" id="navbar">
+    <span class="back" id="back">‹</span>
+    <span id="navtitle">文献助手</span>
+  </div>
+  <div id="mockbanner" class="banner" style="display:none">MOCK 模式：未配置 DEEPSEEK_API_KEY，以下摘要/译文为示例数据</div>
+
+  <!-- ============ 首页 ============ -->
+  <div class="screen" id="screen-home">
+    <div class="hero">
+      <h1>文献助手</h1>
+      <p>读不懂的英文文献、写不对的参考文献
+一个入口，全部解决</p>
+    </div>
+
+    <div class="card entry" onclick="go('read')">
+      <div class="entry-icon">📄</div>
+      <div class="entry-body">
+        <div class="entry-title">论文速读</div>
+        <div class="entry-desc">上传 PDF，得到一句话总结、研究方法、核心结论与术语表</div>
+      </div>
+      <div class="entry-arrow">›</div>
+    </div>
+
+    <div class="card entry" onclick="go('cite')">
+      <div class="entry-icon">🧾</div>
+      <div class="entry-body">
+        <div class="entry-title">参考文献格式校对</div>
+        <div class="entry-desc">按 GB/T 7714-2015 逐条检查，一键修正并导出规范文献表</div>
+      </div>
+      <div class="entry-arrow">›</div>
+    </div>
+
+    <div class="card entry" id="keybar" style="display:none;background:#FFF8E8" onclick="go('settings')">
+      <div class="entry-icon" style="background:#FFF0D0">🔑</div>
+      <div class="entry-body">
+        <div class="entry-title" style="color:#8A5A00">配置你自己的 API Key</div>
+        <div class="entry-desc" style="color:#A4781F">速读与翻译需要你的 DeepSeek Key；格式校对不需要，可以直接用</div>
+      </div>
+      <div class="entry-arrow">›</div>
+    </div>
+
+    <div class="card entry" onclick="go('translate')">
+      <div class="entry-icon">🌐</div>
+      <div class="entry-body">
+        <div class="entry-title">学术翻译</div>
+        <div class="entry-desc">术语先对齐再翻译，同一术语全文译名一致</div>
+      </div>
+      <div class="entry-arrow">›</div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="stat-num" id="st-papers">0</div><div class="stat-label">已速读论文</div></div>
+      <div class="stat"><div class="stat-num" id="st-fixed">0</div><div class="stat-label">已修正格式问题</div></div>
+    </div>
+
+    <div class="card entry" onclick="go('settings')">
+      <div class="entry-icon">⚙️</div>
+      <div class="entry-body">
+        <div class="entry-title">API 设置</div>
+        <div class="entry-desc" id="keystate">尚未配置，速读与翻译暂不可用</div>
+      </div>
+      <div class="entry-arrow">›</div>
+    </div>
+
+    <div class="footnote">支持有文字层的 PDF（知网 / arXiv 导出的均可）；扫描版暂不支持。文献内容仅用于本次生成，不做长期保存。</div>
+  </div>
+
+  <!-- ============ 论文速读 ============ -->
+  <div class="screen" id="screen-read" style="display:none">
+    <div id="read-idle">
+      <div class="card">
+        <div class="card-title">上传一篇 PDF</div>
+        <div class="muted">拖拽或点击选择文件，20MB 以内。也可以直接粘贴正文文本。</div>
+        <div id="read-needkey" class="muted" style="margin-top:6px;color:#A4781F"></div>
+        <div style="height:12px"></div>
+        <div class="btn btn-primary" onclick="document.getElementById('pdfpick').click()">选择 PDF 文件</div>
+        <input class="file-input" type="file" id="pdfpick" accept="application/pdf">
+        <div style="height:8px"></div>
+        <div class="btn btn-ghost" onclick="readTextMode()">改为粘贴文本</div>
+      </div>
+      <div class="card">
+        <div class="card-title">它会给你什么</div>
+        <div class="muted">① 一句话读懂　② 研究问题 / 方法 / 数据 / 结论　③ 创新点与局限　④ 术语对照表　⑤ 自动抽出参考文献，直接进入格式校对</div>
+      </div>
+    </div>
+
+    <div id="read-running" style="display:none">
+      <div class="card center">
+        <div class="spinner"></div>
+        <div style="height:10px"></div>
+        <div class="card-title" id="read-file">paper.pdf</div>
+        <div class="muted" id="read-step">正在解析 PDF 并生成速读…（约 10-30 秒）</div>
+      </div>
+    </div>
+
+    <div id="read-error" style="display:none">
+      <div class="card">
+        <div class="card-title err">处理失败</div>
+        <div class="muted" id="read-errmsg"></div>
+        <div style="height:12px"></div>
+        <div class="btn btn-ghost" onclick="resetRead()">重新选择文件</div>
+      </div>
+    </div>
+
+    <div id="read-done" style="display:none">
+      <div class="card">
+        <div class="muted" id="read-meta"></div>
+        <div class="hl-title" id="r-title"></div>
+        <div class="one-line" id="r-oneline"></div>
+        <div style="margin-top:8px" id="r-tags"></div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab on" data-tab="quick" onclick="readTab('quick')">要点</div>
+        <div class="tab" data-tab="full" onclick="readTab('full')">结构</div>
+        <div class="tab" data-tab="terms" onclick="readTab('terms')">术语</div>
+      </div>
+
+      <div id="tab-quick">
+        <div class="card">
+          <div class="sec-label">研究问题</div><div class="sec-body" id="r-problem"></div>
+          <div class="divider"></div>
+          <div class="sec-label">方法</div><div class="sec-body" id="r-method"></div>
+          <div class="divider"></div>
+          <div class="sec-label">数据与实验</div><div class="sec-body" id="r-data"></div>
+        </div>
+        <div class="card"><div class="sec-label">主要结论</div><div id="r-results"></div></div>
+      </div>
+
+      <div id="tab-full" style="display:none">
+        <div class="card">
+          <div class="sec-label">创新点</div><div id="r-contrib"></div>
+          <div class="divider"></div>
+          <div class="sec-label">局限</div><div id="r-limits"></div>
+        </div>
+        <div class="card"><div class="sec-label">可借鉴之处</div><div id="r-usable"></div></div>
+      </div>
+
+      <div id="tab-terms" style="display:none">
+        <div class="card"><div class="sec-label" id="r-terms-label">术语对照</div><div id="r-terms"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="btn btn-ghost" onclick="goCiteFromPdf()" id="btn-refs">检查这篇论文的参考文献</div>
+        <div style="height:8px"></div>
+        <div class="btn btn-primary" onclick="copySummary()">复制速读结果</div>
+        <div style="height:8px"></div>
+        <div class="btn btn-ghost" onclick="resetRead()">再读一篇</div>
+      </div>
+      <div class="footnote" id="r-foot"></div>
+    </div>
+  </div>
+
+  <!-- ============ 格式校对 ============ -->
+  <div class="screen" id="screen-cite" style="display:none">
+    <div class="card">
+      <div class="card-title">粘贴参考文献</div>
+      <div class="muted">从 Word 或知网导出里直接复制整段，一行一条，不用整理编号。</div>
+      <div style="height:8px"></div>
+      <textarea id="cite-input" placeholder="例：[1] 周志华. 机器学习[M]. 北京: 清华大学出版社, 2016."></textarea>
+      <div style="height:8px"></div>
+      <div class="row">
+        <div class="btn btn-ghost" onclick="loadSample()">中文示例</div>
+        <div class="btn btn-ghost" onclick="loadSampleEn()">英文示例</div>
+        <div class="btn btn-primary" onclick="runCite()">开始检查</div>
+      </div>
+      <div class="footnote" style="padding-top:8px">校验依据 GB/T 7714-2015，纯本地规则计算，断网也能用。</div>
+    </div>
+
+    <div id="cite-result"></div>
+  </div>
+
+  <!-- ============ 翻译 ============ -->
+  <div class="screen" id="screen-translate" style="display:none">
+    <div class="card">
+      <div class="card-title">粘贴英文段落</div>
+      <div class="muted">先抽取术语并统一译名，再逐段翻译，避免同一术语前后译法不一致。</div>
+      <div style="height:8px"></div>
+      <textarea id="tr-input" placeholder="Abstract / Introduction / 任意一段英文都可以"></textarea>
+      <div style="height:8px"></div>
+      <div class="btn btn-primary" onclick="runTranslate()">翻译</div>
+    </div>
+    <div id="tr-result"></div>
+  </div>
+
+  <!-- ============ API 设置 ============ -->
+  <div class="screen" id="screen-settings" style="display:none">
+    <div class="card">
+      <div class="card-title">使用你自己的 API Key</div>
+      <div class="muted">速读与翻译调用 DeepSeek 大模型，费用走你自己的账户。Key 只保存在这台设备上，请求时由服务端在内存中转发，不写入数据库、不记录日志。</div>
+      <div class="divider"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span id="state-dot" style="color:#B7BFD2">●</span>
+        <span id="state-text" class="muted" style="flex:1">尚未配置</span>
+        <span class="btn-mini" style="margin:0" onclick="clearKey()">清除</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">填写 Key</div>
+      <input id="key-input" type="password" placeholder="sk-................（粘贴后点击保存）"
+        style="width:100%;height:40px;border:none;background:#F8FAFE;border-radius:8px;padding:0 10px;font-size:12.5px;outline:none">
+      <div style="height:8px"></div>
+      <div class="row">
+        <div class="btn btn-ghost" onclick="testKey()">测试连接</div>
+        <div class="btn btn-primary" onclick="saveKey()">保存到本机</div>
+      </div>
+      <div id="key-test" class="muted" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">还没有 Key？</div>
+      <div class="muted">① 打开 platform.deepseek.com 注册登录　② 进入「API keys」创建 Key　③ 复制（以 sk- 开头，只显示一次）　④ 回到本页粘贴保存。</div>
+      <div class="divider"></div>
+      <div class="muted">费用参考：单篇论文速读约消耗 2–6 千 tokens，按现行价格约几分钱；格式校对不消耗 tokens。</div>
+    </div>
+
+    <div class="footnote">不要把 Key 发到群聊或截图里；本作品不会收集你的 Key，也无法读取你在其他应用里的 Key。</div>
+  </div>
+</div>
+
+<aside class="aside">
+  <div class="badge">本地交互预览 · 与小程序页面结构一致</div>
+  <h3>这是什么</h3>
+  <p>小程序 4 个页面的 Web 复刻版，用于在没有微信开发者工具时检查布局、走通流程、录演示视频。数据全部走本机 <code>local-preview/server.js</code>：格式校对用同一份规则引擎，速读/翻译调同一套云函数逻辑。</p>
+  <h3>现在能验证什么</h3>
+  <p class="step">✅ 格式校对：真实校验，18 条规则</p>
+  <p class="step">✅ PDF 解析 + 参考文献段抽取</p>
+  <p class="step">✅ 摘要/翻译链路（需 .env 里的 DeepSeek Key）</p>
+  <h3>启动</h3>
+  <p><code>npm install</code> → <code>npm run preview</code> → 打开 <code>127.0.0.1:5178</code></p>
+  <h3>下一步</h3>
+  <p>把同一份 <code>miniprogram/</code> 用微信开发者工具打开，接入云开发环境，即可扫码体验。</p>
+</aside>
+
+<script>
+const state = { refs: [], summary: null, mock: false };
+
+/* 非阻塞提示，替代 alert（alert 会卡住页面渲染） */
+let _toastTimer = null;
+function toast(msg) {
+  let el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    el.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:300px;' +
+      'background:rgba(23,35,61,.92);color:#fff;font-size:12.5px;line-height:1.6;padding:10px 14px;' +
+      'border-radius:10px;text-align:center;z-index:99;pointer-events:none';
+    document.querySelector('.phone').appendChild(el);
+  }
+  el.textContent = String(msg || '');
+  el.style.display = 'block';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.style.display = 'none'; }, 2200);
+}
+const $ = id => document.getElementById(id);
+
+/* ---------- 导航 ---------- */
+const TITLES = { home: '文献助手', read: '论文速读', cite: '参考文献格式校对', translate: '学术翻译', settings: 'API 设置' };
+function go(name){
+  ['home','read','cite','translate','settings'].forEach(n => $('screen-'+n).style.display = n === name ? 'block' : 'none');
+  $('navtitle').textContent = TITLES[name];
+  $('back').style.display = name === 'home' ? 'none' : 'block';
+  $('navbar').className = 'navbar ' + (name === 'home' ? 'center' : 'title-left');
+  $('screen-'+name).scrollTop = 0;
+}
+$('back').onclick = () => go('home');
+
+/* ---------- 统计 ---------- */
+function bump(key, n){
+  const s = JSON.parse(localStorage.getItem('docassist_stats') || '{"papers":0,"fixed":0}');
+  s[key] = (s[key] || 0) + n;
+  localStorage.setItem('docassist_stats', JSON.stringify(s));
+  renderStats();
+}
+function renderStats(){
+  const s = JSON.parse(localStorage.getItem('docassist_stats') || '{"papers":0,"fixed":0}');
+  $('st-papers').textContent = s.papers; $('st-fixed').textContent = s.fixed;
+}
+renderStats();
+
+/* ---------- BYOK：用户自带的 API Key ---------- */
+const KEY_STORE = 'docai_preview_key';
+function getKey(){ return (localStorage.getItem(KEY_STORE) || '').trim(); }
+function maskKey(k){ return k ? k.slice(0,6) + '••••••' + k.slice(-4) : ''; }
+function refreshKeyUI(){
+  const k = getKey();
+  const bar = $('keybar'), st = $('keystate'), dot = $('state-dot'), txt = $('state-text');
+  if (bar) bar.style.display = k ? 'none' : 'flex';
+  if (st) st.textContent = k ? ('已配置：' + maskKey(k)) : '尚未配置，速读与翻译暂不可用';
+  if (dot) dot.style.color = k ? '#12B76A' : '#B7BFD2';
+  if (txt) txt.textContent = k ? ('已配置：' + maskKey(k)) : '尚未配置';
+  const rnk = $('read-needkey');
+  if (rnk) rnk.textContent = k ? '' : '当前未配置 Key：点击后将返回示例数据（可在「API 设置」填入你自己的 Key）';
+  const banner = $('mockbanner');
+  banner.textContent = '示例模式：未配置 API Key（AI 结果为示例数据）；格式校对为真实计算结果';
+  banner.style.display = k ? 'none' : 'block';
+}
+function saveKey(){
+  const v = ($('key-input').value || '').trim();
+  if (!v) { toast('请先粘贴 Key'); return; }
+  if (!/^sk-[A-Za-z0-9_\-]{16,}$/.test(v)) { toast('Key 格式不对：应以 sk- 开头'); return; }
+  localStorage.setItem(KEY_STORE, v);
+  $('key-input').value = '';
+  refreshKeyUI();
+  toast('已保存到本机');
+}
+function clearKey(){
+  localStorage.removeItem(KEY_STORE);
+  refreshKeyUI();
+  toast('已清除本机 Key');
+}
+async function testKey(){
+  const v = ($('key-input').value || '').trim() || getKey();
+  if (!v) { toast('请先粘贴 Key'); return; }
+  $('key-test').textContent = '测试中…';
+  try {
+    const r = await fetch('/api/verifyKey', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:v})}).then(x=>x.json());
+    const d = r.data || {};
+    if (d.ok) {
+      const models = (d.models||[]).filter(m=>/deepseek/i.test(m)).slice(0,3).join('、');
+      $('key-test').innerHTML = '<span style="color:#12B76A">连接成功</span>' + (models ? '　可用模型：' + models : '');
+    } else {
+      $('key-test').innerHTML = '<span style="color:#E5484D">' + (d.error || '校验失败') + '</span>';
+    }
+  } catch(e) {
+    $('key-test').innerHTML = '<span style="color:#E5484D">' + e.message + '</span>';
+  }
+}
+refreshKeyUI();
+
+fetch('/api/health').then(r => r.json()).then(h => {
+  state.mock = !getKey();
+  refreshKeyUI();
+}).catch(()=>{});
+
+/* ---------- 论文速读 ---------- */
+let lastFileB64 = null;
+$('pdfpick').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (f.size > 20*1024*1024) { toast('文件请小于 20MB'); return; }
+  const b64 = await new Promise(res => {
+    const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(f);
+  });
+  lastFileB64 = b64;
+  startRead(f.name);
+};
+function readTextMode(){
+  const t = prompt('粘贴论文正文（前 12000 字足够）');
+  if (!t) return;
+  startRead('粘贴的文本', t);
+}
+function startRead(name, text){
+  $('read-idle').style.display = 'none';
+  $('read-error').style.display = 'none';
+  $('read-done').style.display = 'none';
+  $('read-running').style.display = 'block';
+  $('read-file').textContent = name;
+  fetch('/api/read', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(Object.assign({apiKey: getKey()}, text ? {text} : {pdfBase64: lastFileB64}))
+  }).then(r => r.json()).then(res => {
+    if (!res.ok) throw new Error(res.error || '解析失败');
+    renderSummary(res.data, name);
+    bump('papers', 1);
+  }).catch(err => {
+    $('read-running').style.display = 'none';
+    $('read-error').style.display = 'block';
+    $('read-errmsg').textContent = String(err.message).slice(0,160);
+  });
+}
+function renderSummary(d, name){
+  const s = d.summary; state.summary = s; state.refs = d.references || [];
+  $('read-running').style.display = 'none';
+  $('read-done').style.display = 'block';
+  $('read-meta').textContent = `${name} · ${d.pages || '—'} 页 · ${d.chars} 字`;
+  $('r-title').textContent = s.title;
+  $('r-oneline').textContent = s.one_line;
+  $('r-tags').innerHTML = s.keywords.map(k => `<span class="tag">${esc(k)}</span>`).join('');
+  $('r-problem').textContent = s.problem;
+  $('r-method').textContent = s.method;
+  $('r-data').textContent = s.data;
+  $('r-results').innerHTML = s.results.map(x => `<div class="li"><b>·</b><span>${esc(x)}</span></div>`).join('');
+  $('r-contrib').innerHTML = s.contributions.map(x => `<div class="li"><b>·</b><span>${esc(x)}</span></div>`).join('');
+  $('r-limits').innerHTML = s.limitations.map(x => `<div class="li"><b>·</b><span>${esc(x)}</span></div>`).join('');
+  $('r-usable').innerHTML = s.usable.map(x => `<div class="li"><b>·</b><span>${esc(x)}</span></div>`).join('');
+  $('r-terms-label').textContent = `术语对照（${s.terms.length} 条）`;
+  $('r-terms').innerHTML = s.terms.length ? s.terms.map(t =>
+    `<div class="term"><div class="term-en">${esc(t.en)}</div><div class="term-zh">${esc(t.zh)}</div><div class="term-note">${esc(t.note)}</div></div>`).join('')
+    : '<div class="muted">这篇论文没有可提取的专业术语。</div>';
+  $('btn-refs').textContent = `检查这篇论文的参考文献（${state.refs.length} 条）`;
+  $('r-foot').textContent = `生成耗时 ${d.costMs || 0} ms · 内容由 AI 依据原文生成，引用前请核对原文。`;
+}
+function resetRead(){
+  $('read-done').style.display='none'; $('read-error').style.display='none';
+  $('read-idle').style.display='block'; lastFileB64=null; $('pdfpick').value='';
+}
+function readTab(t){
+  document.querySelectorAll('.tab').forEach(el => el.classList.toggle('on', el.dataset.tab === t));
+  ['quick','full','terms'].forEach(n => $('tab-'+n).style.display = n === t ? 'block' : 'none');
+}
+function copySummary(){
+  const s = state.summary; if (!s) return;
+  const t = ['【一句话】'+s.one_line,'【问题】'+s.problem,'【方法】'+s.method,'【数据】'+s.data,
+    '【结论】'+s.results.map((x,i)=>(i+1)+'. '+x).join(' '),'【创新】'+s.contributions.map((x,i)=>(i+1)+'. '+x).join(' '),
+    '【局限】'+s.limitations.map((x,i)=>(i+1)+'. '+x).join(' ')].join('\n');
+  navigator.clipboard.writeText(t).then(()=>toast('已复制到剪贴板'));
+}
+function goCiteFromPdf(){
+  if (!state.refs.length) { toast('这篇 PDF 没找到参考文献段'); return; }
+  $('cite-input').value = state.refs.map((s,i)=>`[${i+1}] ${s.replace(/^\s*\[\d+\]\s*/,'')}`).join('\n');
+  go('cite'); runCite();
+}
+
+/* ---------- 格式校对 ---------- */
+const SAMPLE = `[1] 周志华. 机器学习[M]. 北京: 清华大学出版社, 2016.
+[2] 李四，王五. 深度学习综述 [J]. 计算机学报，2020，43（6）：1001～1020
+[3] Vaswani A, Shazeer N, Parmar N, Uszkoreit J, Jones L. Attention is all you need[C]. Advances in Neural Information Processing Systems, 2017: 5998-6008.
+[4] OpenAI. GPT-4 Technical Report[EB/OL]. https://arxiv.org/abs/2303.08774
+[5] 张三. 面向校园场景的智能问答系统研究[D]. 长沙: 国防科技大学, 2023.`;
+function loadSample(){ $('cite-input').value = SAMPLE; runCite(); }
+
+/* 真实摘自《Attention is all you need》的参考文献（ACL 体例），用于演示外文→国标转换 */
+const SAMPLE_EN = `Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E Hinton. Layer normalization.arXiv preprint arXiv:1607.06450, 2016.
+Sepp Hochreiter and Jürgen Schmidhuber. Long short-term memory.Neural computation, 9(8):1735–1780, 1997.
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image recognition. InProceedings of the IEEE Conference on Computer Vision and Pattern Recognition, pages 770–778, 2016.
+Ilya Sutskever, Oriol Vinyals, and Quoc V Le. Sequence to sequence learning with neural networks. In Advances in Neural Information Processing Systems, pages 3104–3112, 2014.
+Diederik Kingma and Jimmy Ba. Adam: A method for stochastic optimization. InICLR, 2015.`;
+function loadSampleEn(){ $('cite-input').value = SAMPLE_EN; runCite(); }
+
+let citeData = null, citeOpen = {};
+function runCite(){
+  const text = $('cite-input').value.trim();
+  if (!text) { toast('请先粘贴参考文献'); return; }
+  fetch('/api/cite', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,sort:true})})
+    .then(r=>r.json()).then(res=>{
+      if (!res.ok) throw new Error(res.error);
+      citeData = res.data; citeOpen = {};
+      citeData.items.forEach((it,i)=>{ if (it.stats.errs>0) citeOpen[i]=true; });
+      renderCite();
+    }).catch(e=>toast('校验失败：'+e.message));
+}
+function renderCite(){
+  const r = citeData;
+  const cls = r.passRate>=80?'ok':(r.passRate>=50?'warn':'err');
+  let html = `
+  <div class="card">
+    <div class="sum-row">
+      <div class="sum-item"><div class="sum-num">${r.total}</div><div class="sum-label">条文献</div></div>
+      <div class="sum-item"><div class="sum-num ${cls}">${r.passRate}%</div><div class="sum-label">通过率</div></div>
+      <div class="sum-item"><div class="sum-num err">${r.errCount}</div><div class="sum-label">有问题</div></div>
+    </div>
+    <div class="muted">${esc(r.summary)}</div>
+    ${r.convertedCount ? `<div class="convnote">检测到 ${r.convertedCount} 条外文文献，已按 GB/T 7714 改写：姓前名缩写、>3 人加 et al.、arXiv 预印本转为 [EB/OL] 并补引用日期。</div>` : ''}
+    <div class="divider"></div>
+    <div>
+      <span class="btn-mini" onclick="fixAll()">一键修正全部</span>
+      <span class="btn-mini" onclick="copyList()">复制文献表</span>
+      <span class="btn-mini" onclick="copyBib()">复制 BibTeX</span>
+      <span class="btn-mini" onclick="$('cite-input').value='';citeData=null;$('cite-result').innerHTML=''">清空</span>
+    </div>
+  </div>`;
+
+  r.items.forEach((it, i) => {
+    const k = it.stats.errs>0?'bad':(it.stats.warns>0?'mid':'');
+    html += `<div class="item ${k}" onclick="toggleItem(${i})">
+      <div class="item-head">
+        <div class="item-no">${i+1}</div>
+        <div class="item-type">${esc(it.typeName||'未识别类型')}</div>
+        ${it.converted ? '<span class="convbadge">外文→国标</span>' : ''}
+        <div class="item-score ${it.score>=80?'ok':(it.score>=50?'warn':'err')}">${it.score} 分</div>
+      </div>
+      <div class="item-orig">${esc(it.original)}</div>
+      ${it.duplicateOf?`<div class="muted err">与第 ${it.duplicateOf} 条重复</div>`:''}`;
+    if (citeOpen[i]) {
+      html += '<div class="divider"></div>';
+      it.problems.forEach(p => {
+        const sym = p.level==='error'?'✕':(p.level==='warn'?'!':'i');
+        html += `<div class="prob"><span class="dot ${p.level} ${p.level==='error'?'err':(p.level==='warn'?'warn':'')}">${sym}</span>
+          <div><div class="prob-rule">${esc(p.rule)}</div><div class="prob-hint">${esc(p.hint)}</div></div></div>`;
+      });
+      if (it.changed) {
+        html += `<div class="fixed-box"><div class="fixed-label">${it.converted ? '已转换为国标格式' : '建议改为'}</div><div class="fixed-text">${esc(it.fixed)}</div>
+          <span class="btn-mini" onclick="event.stopPropagation();copyOne(${i})">复制这条</span></div>`;
+      }
+    } else {
+      html += `<div class="muted" style="margin-top:6px">${it.converted ? '点开看转换说明' : '点开看 ' + it.problems.length + ' 个问题'} ›</div>`;
+    }
+    html += '</div>';
+  });
+  html += '<div class="footnote">校验依据 GB/T 7714-2015《信息与文献 参考文献著录规则》。各期刊社可能有更细的内部要求，最终以投稿指南为准。</div>';
+  $('cite-result').innerHTML = html;
+}
+function toggleItem(i){ citeOpen[i] = !citeOpen[i]; renderCite(); }
+function fixAll(){
+  if (!citeData) return;
+  let n = 0;
+  citeData.items.forEach(it => { if (it.changed) n += it.problems.filter(p=>p.hasFix).length; });
+  const text = citeData.items.filter(it=>!it.duplicateOf)
+    .map((it,i)=>`[${i+1}] ${(it.fixed||it.original).replace(/\s*\.?\s*$/,'.')}`).join('\n');
+  $('cite-input').value = text;
+  bump('fixed', n);
+  runCite();
+  setTimeout(()=>toast(`已修正 ${n} 处格式问题`), 60);
+}
+function copyList(){
+  if (!citeData) return;
+  const text = citeData.items.filter(it=>!it.duplicateOf)
+    .map((it,i)=>`[${i+1}] ${(it.fixed||it.original).replace(/\s*\.?\s*$/,'.')}`).join('\n');
+  navigator.clipboard.writeText(text).then(()=>toast('参考文献表已复制'));
+}
+function copyOne(i){ navigator.clipboard.writeText(citeData.items[i].fixed).then(()=>toast('已复制')); }
+function copyBib(){
+  fetch('/api/cite',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:$('cite-input').value.trim()})})
+    .then(r=>r.json()).then(()=>toast('BibTeX 导出见小程序端「复制 BibTeX」按钮'));
+}
+
+/* ---------- 翻译 ---------- */
+function runTranslate(){
+  const text = $('tr-input').value.trim();
+  if (text.length < 5) { toast('请先粘贴英文段落'); return; }
+  $('tr-result').innerHTML = '<div class="card center"><div class="spinner"></div><div class="muted" style="margin-top:8px">正在抽取术语并翻译…</div></div>';
+  fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text, apiKey: getKey()})})
+    .then(r=>r.json()).then(res=>{
+      if (!res.ok) throw new Error(res.error);
+      const d = res.data;
+      let html = `<div class="card"><div class="card-title">术语表（${d.terms.length}）</div>` +
+        d.terms.map(t=>`<div class="term-row"><span>${esc(t.en)}</span><span class="ok" style="color:var(--pri)">${esc(t.zh)}</span></div>`).join('') + '</div>';
+      d.segments.forEach(s=>{
+        html += `<div class="card"><div class="card-title">译文</div><div class="dst">${esc(s.dst)}</div><div class="divider"></div>
+          <div class="src-label">原文</div><div class="src">${esc(s.src)}</div></div>`;
+      });
+      html += `<div class="btn btn-primary" onclick='navigator.clipboard.writeText(${JSON.stringify(d.segments.map(s=>s.dst).join("\n"))}).then(()=>toast("译文已复制"))'>复制全部译文</div>`;
+      $('tr-result').innerHTML = html;
+    }).catch(e=>{ $('tr-result').innerHTML = `<div class="card"><div class="card-title err">出错了</div><div class="muted">${esc(e.message)}</div></div>`; });
+}
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+</script>
+</body>
+</html>

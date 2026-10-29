@@ -1,0 +1,16 @@
+{
+  "appId": "io.github.josiahbristow.docassist",
+  "appName": "文献助手",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  }
+}
