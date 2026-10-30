@@ -140,6 +140,16 @@
   .read-banner{background:#EEF3FF;color:#2B4A8C;border-radius:10px;padding:9px 12px;font-size:11.5px;line-height:1.5;margin-bottom:10px}
   .read-banner.warn{background:#FFF8E8;color:#8A5A00}
   .read-banner.err{background:#FFF1F1;color:#B3261E}
+  #read-tabs .tab{font-size:11.5px;padding:8px 0}
+  .sim-platforms{display:flex;flex-wrap:wrap;gap:8px}
+  .sim-platform{flex:1 1 44%;display:flex;flex-direction:column;gap:2px;background:var(--pri-soft);border-radius:10px;padding:9px 11px;cursor:pointer}
+  .sim-platform b{font-size:12.5px;color:var(--pri)}
+  .sim-platform span{font-size:10px;color:var(--ink3)}
+  .sim-item{background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 2px 10px rgba(23,35,61,.04)}
+  .sim-title{font-size:13px;font-weight:600;line-height:1.5}
+  .sim-meta{font-size:10.5px;color:var(--ink2);margin-top:4px;line-height:1.5}
+  .sim-abs{font-size:11.5px;line-height:1.7;color:#2A3550;background:#F8FAFE;border-radius:8px;padding:8px 10px;margin-top:8px;max-height:170px;overflow:auto}
+  .sim-actions{margin-top:8px}
   .pdf-page{position:relative;background:#fff;box-shadow:0 4px 18px rgba(23,35,61,.14);border-radius:2px;overflow:hidden;user-select:none;-webkit-user-select:none}
   .pdf-canvas{display:block}
   .pdf-text-layer{position:absolute;inset:0;overflow:hidden;line-height:1;user-select:text;-webkit-user-select:text}
@@ -291,6 +301,7 @@
         <div class="tab" data-tab="quick" onclick="readTab('quick')">要点</div>
         <div class="tab" data-tab="full" onclick="readTab('full')">结构</div>
         <div class="tab" data-tab="terms" onclick="readTab('terms')">术语</div>
+        <div class="tab" data-tab="similar" onclick="readTab('similar')">相似</div>
       </div>
 
       <div id="tab-orig">
@@ -335,6 +346,27 @@
           <div class="card"><div class="sec-label" id="r-terms-label">术语对照</div><div id="r-terms"></div></div>
         </div>
         <div class="card center muted" id="terms-wait">速读生成后在这里显示，可先看「原文」</div>
+      </div>
+
+      <div id="tab-similar" style="display:none">
+        <div class="card">
+          <div class="card-title">检索相似论文</div>
+          <div class="muted">按关键词在国内平台检索同主题文献；相关论文按标题自动检索，摘要可在应用内展开。</div>
+          <div style="height:8px"></div>
+          <input type="text" id="sim-query" placeholder="检索词（默认取关键词）"
+            style="width:100%;height:40px;border:none;background:#F8FAFE;border-radius:8px;padding:0 10px;font-size:12.5px;outline:none">
+          <div class="row" style="margin-top:8px">
+            <div class="btn btn-ghost" id="sim-search">检索相关论文</div>
+            <div class="btn btn-ghost" id="sim-copy">复制检索词</div>
+          </div>
+          <div id="sim-status" class="muted" style="margin-top:6px"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">国内平台</div>
+          <div id="sim-platforms" class="sim-platforms"></div>
+          <div class="muted" style="margin-top:8px">国内平台需要登录或机构权限；点击后在新标签页打开检索结果，本应用不抓取平台内容。</div>
+        </div>
+        <div id="sim-results"></div>
       </div>
 
       <div class="card" id="read-actions" style="display:none">
@@ -450,6 +482,7 @@
   <p class="step">✅ 格式校对：真实校验，18 条规则</p>
   <p class="step">✅ PDF 解析 + 参考文献段抽取</p>
   <p class="step">✅ 论文原文预览：划词翻译 / 高亮备注 / 导出 Markdown</p>
+  <p class="step">✅ 相似论文：国内平台检索链接 + OpenAlex/Crossref 结果</p>
   <p class="step">✅ 摘要/翻译链路（需 .env 里的 DeepSeek Key）</p>
   <h3>启动</h3>
   <p><code>npm install</code> → <code>npm run preview</code> → 打开 <code>127.0.0.1:5178</code></p>
@@ -459,6 +492,7 @@
 
 <script src="/vendor/pdf.min.js"></script>
 <script src="/shared/preview-core.js"></script>
+<script src="/shared/search-links.js"></script>
 <script>
 const state = { refs: [], summary: null, mock: false };
 
@@ -605,6 +639,7 @@ function resetReadTabs(){
   $('r-title').textContent = ''; $('r-oneline').textContent = ''; $('r-tags').innerHTML = '';
   $('r-filemeta').textContent = ''; $('r-foot').textContent = '';
   state.summary = null; state.refs = [];
+  resetSim();
 }
 async function startRead(name, text, withPdf){
   const token = ++readToken;
@@ -675,6 +710,7 @@ function renderSummary(d, name){
   $('read-actions').style.display = 'block';
   ['quick-wait','full-wait','terms-wait'].forEach(id => { $(id).style.display = 'none'; });
   $('r-foot').textContent = `生成耗时 ${d.costMs || 0} ms · 内容由 AI 依据原文生成，引用前请核对原文。`;
+  renderSim(s);
 }
 function resetRead(){
   readToken++;
@@ -687,8 +723,9 @@ function resetRead(){
 }
 function readTab(t){
   document.querySelectorAll('#read-tabs .tab').forEach(el => el.classList.toggle('on', el.dataset.tab === t));
-  ['orig','quick','full','terms'].forEach(n => { $('tab-'+n).style.display = n === t ? 'block' : 'none'; });
+  ['orig','quick','full','terms','similar'].forEach(n => { $('tab-'+n).style.display = n === t ? 'block' : 'none'; });
   $('pv-nav').style.display = t === 'orig' ? '' : 'none';
+  if (t === 'similar') simOnTabOpen();
   if (t !== 'orig') hidePvSheet();
 }
 function copySummary(){
@@ -946,6 +983,107 @@ function exportPv(){
   toast('已导出 Markdown');
 }
 initPreview();
+
+/* ---------- 相似论文 ---------- */
+const SIM_CACHE = 'docai_sim_v1:';
+let simTitle = '', simList = [], simSearched = false;
+
+function renderSim(summary){
+  simTitle = (summary && summary.title) || '';
+  const q = SearchLinks.buildQueries(simTitle, summary && summary.keywords);
+  $('sim-query').value = q.cn;
+  renderSimPlatforms(q.cn);
+  $('sim-results').innerHTML = '';
+  $('sim-status').textContent = simTitle ? '' : '生成速读后，可按标题检索相关论文';
+  simList = []; simSearched = false;
+}
+function resetSim(){
+  simTitle = ''; simList = []; simSearched = false;
+  if ($('sim-query')) $('sim-query').value = '';
+  if ($('sim-platforms')) $('sim-platforms').innerHTML = '';
+  if ($('sim-results')) $('sim-results').innerHTML = '';
+  if ($('sim-status')) $('sim-status').textContent = '';
+}
+function renderSimPlatforms(q){
+  $('sim-platforms').innerHTML = SearchLinks.platformLinks(q).map(l =>
+    `<span class="sim-platform" data-url="${esc(l.url)}"><b>${esc(l.name)}</b><span>${esc(l.note)}</span></span>`
+  ).join('');
+}
+function simOpen(url){
+  if (!url) return;
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+async function simRun(force){
+  if (!simTitle) { toast('先生成速读，再检索相关论文'); return; }
+  const key = SIM_CACHE + simTitle;
+  if (!force) {
+    try {
+      const c = JSON.parse(localStorage.getItem(key) || 'null');
+      if (c && Date.now() - c.t < 24*3600*1000 && Array.isArray(c.list)) { simList = c.list; renderSimResults(); return; }
+    } catch (e) {}
+  }
+  $('sim-status').textContent = '检索中…';
+  $('sim-results').innerHTML = '';
+  try {
+    const r = await fetch('/api/searchPapers?q=' + encodeURIComponent(simTitle)).then(x => x.json());
+    if (!r.ok) throw new Error(r.error || '检索失败');
+    simList = r.data || [];
+    if (!simList.length) { $('sim-status').textContent = '没有找到相关论文，可修改检索词后使用上方国内平台链接'; return; }
+    localStorage.setItem(key, JSON.stringify({ t: Date.now(), list: simList }));
+    $('sim-status').textContent = '共 ' + simList.length + ' 篇 · 按标题检索（OpenAlex / Crossref）';
+    renderSimResults();
+  } catch (e) {
+    $('sim-status').textContent = '检索失败：' + String(e.message || e).slice(0, 70) + '，可直接使用上方平台链接';
+  }
+}
+function renderSimResults(){
+  $('sim-results').innerHTML = simList.map((p, i) => {
+    const meta = [p.authors.slice(0, 3).join(', '), p.year, p.venue, p.citations ? '被引 ' + p.citations : '']
+      .filter(Boolean).join(' · ');
+    return `<div class="sim-item">
+      <div class="sim-title">${esc(p.title)}</div>
+      <div class="sim-meta">${esc(meta)}</div>
+      ${p.abstract ? `<div class="sim-abs" id="sim-abs-${i}" style="display:none">${esc(p.abstract)}</div>` : ''}
+      <div class="sim-actions">
+        ${p.abstract ? `<span class="btn-mini" data-act="abs" data-i="${i}">摘要</span>` : ''}
+        <span class="btn-mini" data-act="open" data-i="${i}">打开</span>
+        ${p.pdf ? `<span class="btn-mini" data-act="pdf" data-i="${i}">PDF</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function simOnTabOpen(){
+  if (!simTitle) { $('sim-status').textContent = '生成速读后，可按标题检索相关论文'; return; }
+  if (!simSearched) { simSearched = true; simRun(false); }
+}
+$('sim-search').onclick = () => simRun(true);
+$('sim-copy').onclick = () => {
+  const q = ($('sim-query').value || '').trim();
+  if (!q) { toast('检索词为空'); return; }
+  navigator.clipboard.writeText(q).then(() => toast('检索词已复制'));
+};
+$('sim-query').oninput = e => renderSimPlatforms(e.target.value);
+$('sim-platforms').onclick = e => {
+  const el = e.target.closest('.sim-platform');
+  if (el) simOpen(el.dataset.url);
+};
+$('sim-results').onclick = e => {
+  const btn = e.target.closest('[data-act]');
+  if (!btn) return;
+  const p = simList[Number(btn.dataset.i)];
+  if (!p) return;
+  if (btn.dataset.act === 'abs') {
+    const box = document.getElementById('sim-abs-' + btn.dataset.i);
+    if (box) {
+      const show = box.style.display === 'none';
+      box.style.display = show ? 'block' : 'none';
+      btn.textContent = show ? '收起' : '摘要';
+    }
+  } else if (btn.dataset.act === 'open') simOpen(p.url);
+  else if (btn.dataset.act === 'pdf') simOpen(p.pdf);
+};
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 </script>

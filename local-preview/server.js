@@ -19,6 +19,7 @@ if (fs.existsSync(envPath)) {
 
 const gb = require('../shared/gb7714.js');
 const core = require('../shared/docai-core.js');
+const searchLinks = require('../shared/search-links.js');
 
 const PORT = Number(process.env.PREVIEW_PORT || 5178);
 const MOCK = process.env.MOCK === '1' || !core.hasKey();
@@ -34,6 +35,45 @@ function resolvePdfjs(file) {
     if (fs.existsSync(p)) return p;
   }
   return null;
+}
+
+/* ---------------- 相似论文检索（OpenAlex 优先，Crossref 兜底） ---------------- */
+const SEARCH_CACHE = new Map();
+const SEARCH_TTL = 10 * 60 * 1000;
+
+async function searchPapers(q) {
+  const key = q.toLowerCase();
+  const hit = SEARCH_CACHE.get(key);
+  if (hit && Date.now() - hit.t < SEARCH_TTL) return hit.list;
+
+  let lastErr = null;
+  try {
+    const url = 'https://api.openalex.org/works?search=' + encodeURIComponent(q) +
+      '&per-page=8&select=id,title,publication_year,authorships,primary_location,best_oa_location,abstract_inverted_index,cited_by_count,doi';
+    const r = await fetch(url, { headers: { 'User-Agent': 'DocAssist-local-preview' } });
+    if (r.ok) {
+      const d = await r.json();
+      const list = searchLinks.normalizeList(d.results, 'openalex');
+      SEARCH_CACHE.set(key, { t: Date.now(), list });
+      return list;
+    }
+    lastErr = new Error('OpenAlex ' + r.status);
+  } catch (e) { lastErr = e; }
+
+  try {
+    const url = 'https://api.crossref.org/works?query.bibliographic=' + encodeURIComponent(q) +
+      '&rows=8&select=DOI,title,author,issued,container-title,abstract,URL,is-referenced-by-count';
+    const r = await fetch(url, { headers: { 'User-Agent': 'DocAssist-local-preview' } });
+    if (r.ok) {
+      const d = await r.json();
+      const list = searchLinks.normalizeList(d.message && d.message.items, 'crossref');
+      SEARCH_CACHE.set(key, { t: Date.now(), list });
+      return list;
+    }
+    throw new Error('Crossref ' + r.status);
+  } catch (e) {
+    throw new Error('检索服务暂时不可用：' + String((lastErr && lastErr.message) || e.message || e).slice(0, 80));
+  }
 }
 
 /* ---------------- 示例数据（无 Key 时使用，界面会明确标注） ---------------- */
@@ -118,6 +158,22 @@ const server = http.createServer(async (req, res) => {
   if (u.pathname === '/shared/preview-core.js') {
     res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
     return res.end(fs.readFileSync(path.join(__dirname, '..', 'shared', 'preview-core.js')));
+  }
+
+  if (u.pathname === '/shared/search-links.js') {
+    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+    return res.end(fs.readFileSync(path.join(__dirname, '..', 'shared', 'search-links.js')));
+  }
+
+  if (u.pathname === '/api/searchPapers') {
+    const q = String(u.query.q || '').trim();
+    if (!q) return send(res, 400, { ok: false, error: '缺少检索词' });
+    try {
+      const list = await searchPapers(q);
+      return send(res, 200, { ok: true, data: list });
+    } catch (e) {
+      return send(res, 200, { ok: false, error: e.message });
+    }
   }
 
   if (u.pathname === '/api/cite' && req.method === 'POST') {

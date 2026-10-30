@@ -8,6 +8,7 @@ import { extractReferenceSection } from '../../shared/refsection.js';
 import { pdfToText } from './pdftext.js';
 import { summarize, translate, verifyKey, store } from './llm.js';
 import { createPreview } from './preview.js';
+import { createSimilarSearch } from './search.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -242,6 +243,7 @@ function resetSummary() {
   $('r-oneline').textContent = '';
   $('r-tags').innerHTML = '';
   lastRefs = [];
+  similar.reset();
 }
 
 async function onPickFile(e) {
@@ -329,12 +331,14 @@ function renderSummary(s, pdf) {
   $('summary-terms').hidden = false;
   $('read-actions').hidden = false;
   ['quick-wait', 'full-wait', 'terms-wait'].forEach(id => { $(id).hidden = true; });
+  similar.render(s);
 }
 
 function readTab(t) {
   document.querySelectorAll('#screen-read .tab').forEach(el => el.classList.toggle('on', el.dataset.tab === t));
-  ['orig', 'quick', 'full', 'terms'].forEach(n => { $('tab-' + n).hidden = n !== t; });
+  ['orig', 'quick', 'full', 'terms', 'similar'].forEach(n => { $('tab-' + n).hidden = n !== t; });
   $('pv-nav').hidden = t !== 'orig';
+  if (t === 'similar') similar.onTabOpen();
   if (t !== 'orig') preview.hideSheet();
 }
 function goCiteFromPdf() {
@@ -421,6 +425,7 @@ function renderBase() {
 
 /* ================= 论文阅读预览 ================= */
 const preview = createPreview({ toast, esc, copy });
+const similar = createSimilarSearch({ toast, esc, copy });
 
 /* ---------------- 启动 ---------------- */
 window.DA = {

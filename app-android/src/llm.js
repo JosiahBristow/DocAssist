@@ -4,6 +4,7 @@
  * 传输层：优先 fetch；WebView 里若被 CORS 拦下，自动退回 CapacitorHttp（原生请求，不受 CORS 限制）。
  */
 import * as common from '../../shared/llm-common.js';
+import * as searchLinks from '../../shared/search-links.js';
 
 const DEFAULT_BASE = 'https://api.deepseek.com/v1';
 const MODEL = 'deepseek-chat';
@@ -138,6 +139,40 @@ export async function translateSelection(text, opts) {
     { role: 'system', content: common.SELECTION_SYSTEM },
     { role: 'user', content: common.selectionPrompt(src) }
   ], Object.assign({ maxTokens: 800, temperature: 0.1 }, opts));
+}
+
+/**
+ * 检索相似论文：OpenAlex 优先（免费、CORS 开放），额度用尽/限流时回退 Crossref。
+ * 不访问知网/万方等平台，只返回公开元数据；平台检索由前端生成链接。
+ */
+export async function searchPapers(query) {
+  const q = String(query || '').trim();
+  if (!q) throw new Error('缺少检索词');
+  let lastErr = null;
+
+  try {
+    const url = 'https://api.openalex.org/works?search=' + encodeURIComponent(q) +
+      '&per-page=8&select=id,title,publication_year,authorships,primary_location,best_oa_location,abstract_inverted_index,cited_by_count,doi';
+    const res = await request('GET', url, {}, undefined);
+    if (res.ok) {
+      const data = JSON.parse(res.text || '{}');
+      return searchLinks.normalizeList(data.results, 'openalex');
+    }
+    lastErr = new Error('OpenAlex ' + res.status);
+  } catch (e) { lastErr = e; }
+
+  try {
+    const url = 'https://api.crossref.org/works?query.bibliographic=' + encodeURIComponent(q) +
+      '&rows=8&select=DOI,title,author,issued,container-title,abstract,URL,is-referenced-by-count';
+    const res = await request('GET', url, {}, undefined);
+    if (res.ok) {
+      const data = JSON.parse(res.text || '{}');
+      return searchLinks.normalizeList(data.message && data.message.items, 'crossref');
+    }
+    throw new Error('Crossref ' + res.status);
+  } catch (e) {
+    throw new Error('检索服务暂时不可用：' + String((lastErr && lastErr.message) || e.message || e).slice(0, 80));
+  }
 }
 
 export { store };

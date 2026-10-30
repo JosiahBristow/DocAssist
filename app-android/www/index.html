@@ -141,6 +141,25 @@
   .pdf-scroll{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}
   .pdf-page{margin:0 auto}
 
+  .read-banner{display:flex;align-items:center;gap:8px;background:#EEF3FF;color:#2B4A8C;
+    border-radius:10px;padding:9px 12px;font-size:12px;line-height:1.5;margin-bottom:10px}
+  .read-banner.warn{background:#FFF8E8;color:#8A5A00}
+  .read-banner.err{background:#FFF1F1;color:#B3261E}
+  .read-banner .banner-action{margin-left:auto;flex:0 0 auto;font-weight:600;cursor:pointer;text-decoration:underline}
+  .read-banner.warn .banner-action{color:#8A5A00}
+  .read-banner.err .banner-action{color:#B3261E}
+
+  #screen-read .tab{font-size:12px;padding:8px 0}
+  .sim-platforms{display:flex;flex-wrap:wrap;gap:8px}
+  .sim-platform{flex:1 1 44%;display:flex;flex-direction:column;gap:2px;background:var(--pri-soft);border-radius:10px;padding:9px 11px;cursor:pointer}
+  .sim-platform b{font-size:13px;color:var(--pri)}
+  .sim-platform span{font-size:10.5px;color:var(--ink3)}
+  .sim-item{background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 2px 8px rgba(23,35,61,.04)}
+  .sim-title{font-size:13.5px;font-weight:600;line-height:1.5}
+  .sim-meta{font-size:11px;color:var(--ink2);margin-top:4px;line-height:1.5}
+  .sim-abs{font-size:12px;line-height:1.7;color:#2A3550;background:#F8FAFE;border-radius:8px;padding:8px 10px;margin-top:8px;max-height:180px;overflow:auto}
+  .sim-actions{margin-top:8px}
+
   .pdf-page{position:relative;background:#fff;box-shadow:0 4px 18px rgba(23,35,61,.14);border-radius:2px;overflow:hidden;user-select:none;-webkit-user-select:none}
   .pdf-canvas{display:block}
   .pdf-text-layer{position:absolute;inset:0;overflow:hidden;line-height:1;user-select:text;-webkit-user-select:text}
@@ -287,6 +306,7 @@
         <div class="tab" data-tab="quick" onclick="DA.readTab('quick')">要点</div>
         <div class="tab" data-tab="full" onclick="DA.readTab('full')">结构</div>
         <div class="tab" data-tab="terms" onclick="DA.readTab('terms')">术语</div>
+        <div class="tab" data-tab="similar" onclick="DA.readTab('similar')">相似</div>
       </div>
 
       <div id="tab-orig">
@@ -331,6 +351,26 @@
           <div class="card"><div class="sec-label" id="r-terms-label">术语对照</div><div id="r-terms"></div></div>
         </div>
         <div class="card center muted" id="terms-wait">速读生成后在这里显示，可先看「原文」</div>
+      </div>
+
+      <div id="tab-similar" hidden>
+        <div class="card">
+          <div class="card-title">检索相似论文</div>
+          <div class="muted">按关键词在国内平台检索同主题文献；相关论文按标题自动检索，摘要可在应用内展开。</div>
+          <div style="height:8px"></div>
+          <input type="text" id="sim-query" placeholder="检索词（默认取关键词）">
+          <div class="row" style="margin-top:8px">
+            <div class="btn btn-ghost" id="sim-search">检索相关论文</div>
+            <div class="btn btn-ghost" id="sim-copy">复制检索词</div>
+          </div>
+          <div id="sim-status" class="muted" style="margin-top:6px"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">国内平台</div>
+          <div id="sim-platforms" class="sim-platforms"></div>
+          <div class="muted" style="margin-top:8px">国内平台需要登录或机构权限；点击后用系统浏览器打开检索结果，本应用不抓取平台内容。</div>
+        </div>
+        <div id="sim-results"></div>
       </div>
 
       <div class="card" id="read-actions" hidden>
