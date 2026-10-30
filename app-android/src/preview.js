@@ -1,21 +1,19 @@
 /**
- * preview.js —— Android 端「论文原文」界面逻辑
- * 渲染/选区/标注都交给 shared/preview-core.js，这里只负责页面交互：
- * 选文件、翻页、操作条（翻译 / 高亮）、备注弹窗、Markdown 导出。
+ * preview.js —— 论文阅读页里的原文预览交互
+ * 渲染/选区/标注都交给 shared/preview-core.js，这里只负责：
+ * 翻页、划词操作条（翻译 / 高亮）、备注弹窗、Markdown 导出。
  */
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.min.js';
-import { createStore, createViewer } from '../../shared/preview-core.js';
+import { createViewer } from '../../shared/preview-core.js';
 import { translateSelection } from './llm.js';
 
 const $ = id => document.getElementById(id);
 
 export function createPreview(opts) {
-  const go = opts.go;
   const toast = opts.toast;
   const copy = opts.copy;
   const esc = opts.esc;
 
-  const store = createStore(localStorage);
   let viewer = null;
   let pendingSel = null;
   let activeHl = null;
@@ -33,6 +31,7 @@ export function createPreview(opts) {
         $('pv-next').classList.toggle('off', page >= total);
       },
       onCountChange: n => { $('pv-count').textContent = n ? n + ' 处标注' : '暂无标注'; },
+      onZoomChange: ({ zoom }) => { $('pv-zoom').textContent = Math.round(zoom * 100) + '%'; },
       onSelection: sel => {
         pendingSel = sel;
         showSheet(sel);
@@ -40,11 +39,13 @@ export function createPreview(opts) {
       onHighlightClick: ann => showNote(ann)
     });
 
-    $('pvpick').addEventListener('change', onPick);
     $('pv-prev').addEventListener('click', () => viewer.prev());
     $('pv-next').addEventListener('click', () => viewer.next());
     $('pv-page').addEventListener('change', e => viewer.goto(e.target.value));
-    $('pv-change').addEventListener('click', () => $('pvpick').click());
+    $('pv-change').addEventListener('click', () => $('pdfpick').click());
+    $('pv-zoom-in').addEventListener('click', () => viewer.zoomIn());
+    $('pv-zoom-out').addEventListener('click', () => viewer.zoomOut());
+    $('pv-zoom').addEventListener('click', () => viewer.resetZoom());
     $('pv-export').addEventListener('click', exportMd);
     $('pv-sheet-close').addEventListener('click', hideSheet);
     $('pv-btn-highlight').addEventListener('click', doHighlight);
@@ -56,45 +57,30 @@ export function createPreview(opts) {
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
-        if (!$('screen-preview').hidden && viewer.getInfo().hasDoc) viewer.resize();
+        if (!$('screen-read').hidden && viewer.getInfo().hasDoc) viewer.resize();
       }, 250);
     });
   }
 
-  function showIdle() {
-    $('preview-idle').hidden = false;
-    $('preview-viewer').hidden = true;
-    $('pvpick').value = '';
-  }
-  function showViewer() {
-    $('preview-idle').hidden = true;
-    $('preview-viewer').hidden = false;
-  }
-
   async function openFile(file) {
-    if (!file) return;
-    if (file.size > 25 * 1024 * 1024) { toast('文件请小于 25MB'); return; }
-    go('preview');
-    showViewer();
+    if (!file) throw new Error('没有选择文件');
     hideSheet();
     hideNote();
     $('pv-name').textContent = file.name || 'paper.pdf';
     $('pv-count').textContent = '加载中…';
-    try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      await viewer.open(bytes, file.name || 'paper.pdf');
-      $('pv-count').textContent = viewer.getInfo().count ? viewer.getInfo().count + ' 处标注' : '暂无标注';
-      if (viewer.getInfo().count) toast('已恢复 ' + viewer.getInfo().count + ' 处标注');
-    } catch (e) {
-      showIdle();
-      toast('打不开这个 PDF：' + String(e.message || e).slice(0, 80));
-    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await viewer.open(bytes, file.name || 'paper.pdf');
+    const n = viewer.getInfo().count;
+    $('pv-count').textContent = n ? n + ' 处标注' : '暂无标注';
+    if (n) toast('已恢复 ' + n + ' 处标注');
   }
 
-  function onPick(e) {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = '';
-    openFile(file);
+  function reset() {
+    viewer.close();
+    hideSheet();
+    hideNote();
+    $('pv-name').textContent = 'paper.pdf';
+    $('pv-count').textContent = '暂无标注';
   }
 
   /* ---------------- 划词操作条 ---------------- */
@@ -175,5 +161,5 @@ export function createPreview(opts) {
   }
 
   init();
-  return { openFile, showIdle };
+  return { openFile, reset, hideSheet };
 }

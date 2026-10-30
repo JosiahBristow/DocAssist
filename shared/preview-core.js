@@ -131,6 +131,8 @@
     var storage = o.storage || null;
     var store = storage ? createStore(storage) : null;
 
+    var MIN_ZOOM = 1, MAX_ZOOM = 3, ZOOM_STEP = 0.25;
+
     var state = {
       pdf: null,
       page: 1,
@@ -142,6 +144,8 @@
       canvas: null,
       textLayer: null,
       hlLayer: null,
+      scrollEl: null,
+      zoom: 1,
       renderToken: 0,
       destroyed: false
     };
@@ -208,6 +212,68 @@
       document.addEventListener('selectionchange', onSelectionChange);
     }
 
+    /* ---- 缩放 ---- */
+    function clampZoom(z) {
+      z = Number(z) || 1;
+      return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(z * 100) / 100));
+    }
+
+    async function setZoom(z) {
+      z = clampZoom(z);
+      if (z === state.zoom) return;
+      state.zoom = z;
+      emit('onZoomChange', { zoom: z });
+      if (state.pdf) await renderPage();
+    }
+
+    function zoomIn() { return setZoom(state.zoom + ZOOM_STEP); }
+    function zoomOut() { return setZoom(state.zoom - ZOOM_STEP); }
+    function resetZoom() { return setZoom(1); }
+    function getZoom() { return state.zoom; }
+
+    /* 双指捏合：手势中先用 transform 预览，松手后按新比例重新渲染（保证清晰） */
+    var pinch = null;
+    function touchDist(t) {
+      var dx = t[0].clientX - t[1].clientX;
+      var dy = t[0].clientY - t[1].clientY;
+      return Math.hypot(dx, dy);
+    }
+    if (mount && typeof document !== 'undefined') {
+      mount.addEventListener('touchstart', function (e) {
+        if (e.touches.length !== 2 || !state.pageEl) return;
+        var box = state.pageEl.getBoundingClientRect();
+        var mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - box.left;
+        var my = (e.touches[0].clientY + e.touches[1].clientY) / 2 - box.top;
+        pinch = { dist: touchDist(e.touches), zoom: state.zoom, current: state.zoom };
+        state.pageEl.style.transformOrigin = mx + 'px ' + my + 'px';
+      }, { passive: true });
+
+      mount.addEventListener('touchmove', function (e) {
+        if (!pinch || e.touches.length !== 2) return;
+        e.preventDefault();
+        var z = clampZoom(pinch.zoom * (touchDist(e.touches) / pinch.dist));
+        pinch.current = z;
+        state.pageEl.style.transform = 'scale(' + (z / pinch.zoom) + ')';
+      }, { passive: false });
+
+      mount.addEventListener('touchend', function (e) {
+        if (!pinch || e.touches.length >= 2) return;
+        var z = pinch.current;
+        pinch = null;
+        if (state.pageEl) {
+          state.pageEl.style.transform = '';
+          state.pageEl.style.transformOrigin = '';
+        }
+        if (z !== state.zoom) setZoom(z);
+      });
+
+      mount.addEventListener('wheel', function (e) {
+        if (!e.ctrlKey) return;
+        e.preventDefault();
+        setZoom(state.zoom + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+      }, { passive: false });
+    }
+
     /* ---- 高亮层 ---- */
     function paintHighlights() {
       if (!state.hlLayer) return;
@@ -256,11 +322,12 @@
 
       var base = page.getViewport({ scale: 1 });
       var avail = Math.max(200, mount.clientWidth - 2);
-      var scale = avail / base.width;
+      var scale = (avail / base.width) * state.zoom;
       var vp = page.getViewport({ scale: scale });
       var dpr = Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1);
 
       mount.innerHTML = '';
+      var scroll = el('div', 'pdf-scroll');
       var pageEl = el('div', 'pdf-page');
       pageEl.style.width = vp.width + 'px';
       pageEl.style.height = vp.height + 'px';
@@ -282,7 +349,9 @@
       state.canvas = canvas;
       state.textLayer = textLayer;
       state.hlLayer = hlLayer;
-      mount.appendChild(pageEl);
+      state.scrollEl = scroll;
+      scroll.appendChild(pageEl);
+      mount.appendChild(scroll);
       pageEl.addEventListener('click', onPageClick);
 
       var ctx = canvas.getContext('2d');
@@ -331,6 +400,7 @@
       }).promise;
       state.total = state.pdf.numPages;
       state.page = 1;
+      state.zoom = 1;
       state.name = name || 'paper.pdf';
       state.fp = fingerprintFromBytes(state.name, data);
       var doc = store ? store.load(state.fp) : { name: state.name, items: [] };
@@ -338,6 +408,7 @@
       state.annotations = doc.items || [];
       if (store) store.save(state.fp, doc);
       emit('onOpen', { total: state.total, count: state.annotations.length, name: state.name });
+      emit('onZoomChange', { zoom: state.zoom });
       await renderPage();
       return { total: state.total, fp: state.fp, count: state.annotations.length };
     }
@@ -405,10 +476,11 @@
       state.pdf = null;
       state.page = 1;
       state.total = 0;
-      state.pageEl = state.canvas = state.textLayer = state.hlLayer = null;
+      state.pageEl = state.canvas = state.textLayer = state.hlLayer = state.scrollEl = null;
       state.annotations = [];
       state.fp = '';
       state.name = '';
+      state.zoom = 1;
     }
 
     function destroy() {
@@ -425,6 +497,7 @@
         total: state.total,
         count: state.annotations.length,
         fp: state.fp,
+        zoom: state.zoom,
         hasDoc: !!state.pdf
       };
     }
@@ -441,6 +514,11 @@
       resize: resize,
       close: close,
       destroy: destroy,
+      setZoom: setZoom,
+      zoomIn: zoomIn,
+      zoomOut: zoomOut,
+      resetZoom: resetZoom,
+      getZoom: getZoom,
       getInfo: getInfo,
       getSelection: captureSelection
     };

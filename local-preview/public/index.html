@@ -131,6 +131,15 @@
   .pv-count{margin-left:auto;font-size:11px;color:var(--ink2)}
   .pv-mount{display:flex;justify-content:center}
   .pv-hint{text-align:center;font-size:10.5px;color:var(--ink3);padding:12px 0 20px;line-height:1.6}
+  .pv-zoomctl{display:flex;align-items:center;background:#F4F6FB;border-radius:8px;padding:1px;flex:0 0 auto}
+  .pv-zbtn{width:24px;height:26px;line-height:26px;text-align:center;color:var(--pri);font-size:15px;cursor:pointer;user-select:none}
+  .pv-zbtn:active{background:var(--pri-soft);border-radius:6px}
+  .pv-zval{width:42px;text-align:center;font-size:10.5px;color:var(--ink2);cursor:pointer;user-select:none}
+  .pdf-scroll{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}
+  .pdf-page{margin:0 auto}
+  .read-banner{background:#EEF3FF;color:#2B4A8C;border-radius:10px;padding:9px 12px;font-size:11.5px;line-height:1.5;margin-bottom:10px}
+  .read-banner.warn{background:#FFF8E8;color:#8A5A00}
+  .read-banner.err{background:#FFF1F1;color:#B3261E}
   .pdf-page{position:relative;background:#fff;box-shadow:0 4px 18px rgba(23,35,61,.14);border-radius:2px;overflow:hidden;user-select:none;-webkit-user-select:none}
   .pdf-canvas{display:block}
   .pdf-text-layer{position:absolute;inset:0;overflow:hidden;line-height:1;user-select:text;-webkit-user-select:text}
@@ -185,19 +194,10 @@
     </div>
 
     <div class="card entry" onclick="go('read')">
-      <div class="entry-icon">📄</div>
-      <div class="entry-body">
-        <div class="entry-title">论文速读</div>
-        <div class="entry-desc">上传 PDF，得到一句话总结、研究方法、核心结论与术语表</div>
-      </div>
-      <div class="entry-arrow">›</div>
-    </div>
-
-    <div class="card entry" onclick="go('preview')">
       <div class="entry-icon">📖</div>
       <div class="entry-body">
-        <div class="entry-title">论文原文</div>
-        <div class="entry-desc">逐页阅读 PDF：划词翻译、高亮并写备注，一键导出 Markdown 笔记</div>
+        <div class="entry-title">论文阅读</div>
+        <div class="entry-desc">选一份 PDF：先读原文、划词翻译、高亮备注；速读要点在后台生成</div>
       </div>
       <div class="entry-arrow">›</div>
     </div>
@@ -246,12 +246,12 @@
     <div class="footnote">支持有文字层的 PDF（知网 / arXiv 导出的均可）；扫描版暂不支持。文献内容仅用于本次生成，不做长期保存。</div>
   </div>
 
-  <!-- ============ 论文速读 ============ -->
+  <!-- ============ 论文阅读（原文 + 速读） ============ -->
   <div class="screen" id="screen-read" style="display:none">
     <div id="read-idle">
       <div class="card">
         <div class="card-title">上传一篇 PDF</div>
-        <div class="muted">拖拽或点击选择文件，20MB 以内。也可以直接粘贴正文文本。</div>
+        <div class="muted">拖拽或点击选择文件，20MB 以内。选完立即打开原文；速读在后台生成。也可以直接粘贴正文文本。</div>
         <div id="read-needkey" class="muted" style="margin-top:6px;color:#A4781F"></div>
         <div style="height:12px"></div>
         <div class="btn btn-primary" onclick="document.getElementById('pdfpick').click()">选择 PDF 文件</div>
@@ -260,68 +260,84 @@
         <div class="btn btn-ghost" onclick="readTextMode()">改为粘贴文本</div>
       </div>
       <div class="card">
-        <div class="card-title">它会给你什么</div>
-        <div class="muted">① 一句话读懂　② 研究问题 / 方法 / 数据 / 结论　③ 创新点与局限　④ 术语对照表　⑤ 自动抽出参考文献，直接进入格式校对</div>
+        <div class="card-title">一个页面，两种读法</div>
+        <div class="muted">原文：逐页阅读、划词翻译、高亮备注（预览与高亮不需要 Key）<br>速读：要点 / 结构 / 术语，并自动联动参考文献校对（需要 Key）</div>
       </div>
     </div>
 
-    <div id="read-running" style="display:none">
-      <div class="card center">
-        <div class="spinner"></div>
-        <div style="height:10px"></div>
-        <div class="card-title" id="read-file">paper.pdf</div>
-        <div class="muted" id="read-step">正在解析 PDF 并生成速读…（约 10-30 秒）</div>
+    <div id="read-main" style="display:none">
+      <div class="pv-bar">
+        <span class="pv-name" id="pv-name">paper.pdf</span>
+        <span class="pv-zoomctl">
+          <span class="pv-zbtn" id="pv-zoom-out">−</span>
+          <span class="pv-zval" id="pv-zoom">100%</span>
+          <span class="pv-zbtn" id="pv-zoom-in">+</span>
+        </span>
+        <span class="btn-mini" style="margin:0" id="pv-export">导出</span>
+        <span class="btn-mini" style="margin:0 0 0 6px" id="pv-change">换一篇</span>
       </div>
-    </div>
-
-    <div id="read-error" style="display:none">
-      <div class="card">
-        <div class="card-title err">处理失败</div>
-        <div class="muted" id="read-errmsg"></div>
-        <div style="height:12px"></div>
-        <div class="btn btn-ghost" onclick="resetRead()">重新选择文件</div>
-      </div>
-    </div>
-
-    <div id="read-done" style="display:none">
-      <div class="card">
-        <div class="muted" id="read-meta"></div>
-        <div class="hl-title" id="r-title"></div>
-        <div class="one-line" id="r-oneline"></div>
-        <div style="margin-top:8px" id="r-tags"></div>
+      <div class="pv-nav" id="pv-nav">
+        <span class="pv-btn" id="pv-prev">‹</span>
+        <input class="pv-page" id="pv-page" type="number" min="1" value="1">
+        <span class="pv-total" id="pv-total">/ 1</span>
+        <span class="pv-btn" id="pv-next">›</span>
+        <span class="pv-count" id="pv-count">暂无标注</span>
       </div>
 
-      <div class="tabs">
-        <div class="tab on" data-tab="quick" onclick="readTab('quick')">要点</div>
+      <div id="read-banner" class="read-banner" style="display:none"></div>
+
+      <div class="tabs" id="read-tabs">
+        <div class="tab on" data-tab="orig" onclick="readTab('orig')" id="tab-btn-orig">原文</div>
+        <div class="tab" data-tab="quick" onclick="readTab('quick')">要点</div>
         <div class="tab" data-tab="full" onclick="readTab('full')">结构</div>
         <div class="tab" data-tab="terms" onclick="readTab('terms')">术语</div>
       </div>
 
-      <div id="tab-quick">
-        <div class="card">
-          <div class="sec-label">研究问题</div><div class="sec-body" id="r-problem"></div>
-          <div class="divider"></div>
-          <div class="sec-label">方法</div><div class="sec-body" id="r-method"></div>
-          <div class="divider"></div>
-          <div class="sec-label">数据与实验</div><div class="sec-body" id="r-data"></div>
+      <div id="tab-orig">
+        <div class="pv-mount" id="pv-mount"></div>
+        <div class="pv-hint">拖选文字 → 翻译 / 高亮；点高亮处加备注</div>
+      </div>
+
+      <div id="tab-quick" style="display:none">
+        <div class="card" id="read-meta" style="display:none">
+          <div class="muted" id="r-filemeta"></div>
+          <div class="hl-title" id="r-title"></div>
+          <div class="one-line" id="r-oneline"></div>
+          <div style="margin-top:8px" id="r-tags"></div>
         </div>
-        <div class="card"><div class="sec-label">主要结论</div><div id="r-results"></div></div>
+        <div id="summary-quick" style="display:none">
+          <div class="card">
+            <div class="sec-label">研究问题</div><div class="sec-body" id="r-problem"></div>
+            <div class="divider"></div>
+            <div class="sec-label">方法</div><div class="sec-body" id="r-method"></div>
+            <div class="divider"></div>
+            <div class="sec-label">数据与实验</div><div class="sec-body" id="r-data"></div>
+          </div>
+          <div class="card"><div class="sec-label">主要结论</div><div id="r-results"></div></div>
+        </div>
+        <div class="card center muted" id="quick-wait">速读生成后在这里显示，可先看「原文」</div>
       </div>
 
       <div id="tab-full" style="display:none">
-        <div class="card">
-          <div class="sec-label">创新点</div><div id="r-contrib"></div>
-          <div class="divider"></div>
-          <div class="sec-label">局限</div><div id="r-limits"></div>
+        <div id="summary-full" style="display:none">
+          <div class="card">
+            <div class="sec-label">创新点</div><div id="r-contrib"></div>
+            <div class="divider"></div>
+            <div class="sec-label">局限</div><div id="r-limits"></div>
+          </div>
+          <div class="card"><div class="sec-label">可借鉴之处</div><div id="r-usable"></div></div>
         </div>
-        <div class="card"><div class="sec-label">可借鉴之处</div><div id="r-usable"></div></div>
+        <div class="card center muted" id="full-wait">速读生成后在这里显示，可先看「原文」</div>
       </div>
 
       <div id="tab-terms" style="display:none">
-        <div class="card"><div class="sec-label" id="r-terms-label">术语对照</div><div id="r-terms"></div></div>
+        <div id="summary-terms" style="display:none">
+          <div class="card"><div class="sec-label" id="r-terms-label">术语对照</div><div id="r-terms"></div></div>
+        </div>
+        <div class="card center muted" id="terms-wait">速读生成后在这里显示，可先看「原文」</div>
       </div>
 
-      <div class="card">
+      <div class="card" id="read-actions" style="display:none">
         <div class="btn btn-ghost" onclick="goCiteFromPdf()" id="btn-refs">检查这篇论文的参考文献</div>
         <div style="height:8px"></div>
         <div class="btn btn-primary" onclick="copySummary()">复制速读结果</div>
@@ -349,40 +365,6 @@
     </div>
 
     <div id="cite-result"></div>
-  </div>
-
-  <!-- ============ 论文原文 ============ -->
-  <div class="screen" id="screen-preview" style="display:none">
-    <div id="preview-idle">
-      <div class="card">
-        <div class="card-title">打开一篇 PDF</div>
-        <div class="muted">逐页阅读原文：划词翻译、高亮并写备注、导出 Markdown 笔记。标注按文件自动保存在本机浏览器。</div>
-        <div style="height:12px"></div>
-        <div class="btn btn-primary" onclick="document.getElementById('pvpick').click()">选择 PDF 文件</div>
-        <input class="file-input" type="file" id="pvpick" accept="application/pdf">
-      </div>
-      <div class="card">
-        <div class="card-title">怎么用</div>
-        <div class="muted">① 拖选文字，底部弹出操作条<br>② 点「翻译」看中文，点「高亮」做标记<br>③ 点高亮处可写备注、删除<br>④ 右上角「导出」生成 Markdown 笔记</div>
-      </div>
-    </div>
-
-    <div id="preview-viewer" style="display:none">
-      <div class="pv-bar">
-        <span class="pv-name" id="pv-name">paper.pdf</span>
-        <span class="btn-mini" style="margin:0" id="pv-export">导出</span>
-        <span class="btn-mini" style="margin:0 0 0 6px" id="pv-change">换文件</span>
-      </div>
-      <div class="pv-nav">
-        <span class="pv-btn" id="pv-prev">‹</span>
-        <input class="pv-page" id="pv-page" type="number" min="1" value="1">
-        <span class="pv-total" id="pv-total">/ 1</span>
-        <span class="pv-btn" id="pv-next">›</span>
-        <span class="pv-count" id="pv-count">暂无标注</span>
-      </div>
-      <div class="pv-mount" id="pv-mount"></div>
-      <div class="pv-hint">拖选文字 → 翻译 / 高亮；点高亮处加备注</div>
-    </div>
   </div>
 
   <!-- ============ 翻译 ============ -->
@@ -500,7 +482,7 @@ function toast(msg) {
 const $ = id => document.getElementById(id);
 
 /* ---------- 导航 ---------- */
-const TITLES = { home: '文献助手', read: '论文速读', preview: '论文原文', cite: '参考文献格式校对', translate: '学术翻译', settings: 'API 设置' };
+const TITLES = { home: '文献助手', read: '论文阅读', cite: '参考文献格式校对', translate: '学术翻译', settings: 'API 设置' };
 let cur = 'home';
 const stack = [];
 function go(name, push){
@@ -509,12 +491,12 @@ function go(name, push){
     try { history.pushState({ screen: name }, ''); } catch (e) {}
   }
   cur = name;
-  ['home','read','preview','cite','translate','settings'].forEach(n => $('screen-'+n).style.display = n === name ? 'block' : 'none');
+  ['home','read','cite','translate','settings'].forEach(n => $('screen-'+n).style.display = n === name ? 'block' : 'none');
   $('navtitle').textContent = TITLES[name];
   $('back').style.display = name === 'home' ? 'none' : 'block';
   $('navbar').className = 'navbar ' + (name === 'home' ? 'center' : 'title-left');
   $('screen-'+name).scrollTop = 0;
-  if (name !== 'preview') hidePvSheet();
+  if (name !== 'read') hidePvSheet();
 }
 function back(){
   if (stack.length) { history.back(); return; }
@@ -593,46 +575,84 @@ fetch('/api/health').then(r => r.json()).then(h => {
   refreshKeyUI();
 }).catch(()=>{});
 
-/* ---------- 论文速读 ---------- */
-let lastFileB64 = null;
+/* ---------- 论文阅读（原文 + 速读） ---------- */
+let lastFileB64 = null, readToken = 0, hasPdf = false;
+
 $('pdfpick').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
+  e.target.value = '';
   if (f.size > 20*1024*1024) { toast('文件请小于 20MB'); return; }
   const b64 = await new Promise(res => {
     const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(f);
   });
   lastFileB64 = b64;
-  startRead(f.name);
+  startRead(f.name, null, true);
 };
 function readTextMode(){
   const t = prompt('粘贴论文正文（前 12000 字足够）');
   if (!t) return;
-  startRead('粘贴的文本', t);
+  startRead('粘贴的文本', t, false);
 }
-function startRead(name, text){
+function setReadBanner(kind, text){
+  const el = $('read-banner');
+  el.className = 'read-banner' + (kind ? ' ' + kind : '');
+  el.textContent = text || '';
+  el.style.display = text ? 'block' : 'none';
+}
+function resetReadTabs(){
+  ['read-meta','summary-quick','summary-full','summary-terms','read-actions'].forEach(id => { $(id).style.display = 'none'; });
+  ['quick-wait','full-wait','terms-wait'].forEach(id => { $(id).style.display = 'block'; });
+  $('r-title').textContent = ''; $('r-oneline').textContent = ''; $('r-tags').innerHTML = '';
+  $('r-filemeta').textContent = ''; $('r-foot').textContent = '';
+  state.summary = null; state.refs = [];
+}
+async function startRead(name, text, withPdf){
+  const token = ++readToken;
+  hasPdf = !!withPdf;
   $('read-idle').style.display = 'none';
-  $('read-error').style.display = 'none';
-  $('read-done').style.display = 'none';
-  $('read-running').style.display = 'block';
-  $('read-file').textContent = name;
-  fetch('/api/read', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(Object.assign({apiKey: getKey()}, text ? {text} : {pdfBase64: lastFileB64}))
-  }).then(r => r.json()).then(res => {
+  $('read-main').style.display = 'block';
+  $('pv-name').textContent = name;
+  resetReadTabs();
+  $('tab-btn-orig').style.display = withPdf ? '' : 'none';
+
+  if (withPdf) {
+    readTab('orig');
+    setReadBanner('', '正在打开原文…');
+    try {
+      const bin = atob(lastFileB64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      await pvViewer.open(arr, name);
+      const n = pvViewer.getInfo().count;
+      $('pv-count').textContent = n ? n + ' 处标注' : '暂无标注';
+      if (n) toast('已恢复 ' + n + ' 处标注');
+    } catch (e) {
+      toast('打不开这个 PDF：' + String(e.message || e).slice(0, 60));
+      setReadBanner('warn', '原文打不开，仍可查看速读结果');
+    }
+  } else {
+    readTab('quick');
+  }
+
+  setReadBanner('', '速读生成中…');
+  try {
+    const res = await fetch('/api/read', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(Object.assign({apiKey: getKey()}, text ? {text} : {pdfBase64: lastFileB64}))
+    }).then(r => r.json());
+    if (token !== readToken) return;
     if (!res.ok) throw new Error(res.error || '解析失败');
     renderSummary(res.data, name);
+    setReadBanner('');
     bump('papers', 1);
-  }).catch(err => {
-    $('read-running').style.display = 'none';
-    $('read-error').style.display = 'block';
-    $('read-errmsg').textContent = String(err.message).slice(0,160);
-  });
+  } catch (err) {
+    if (token !== readToken) return;
+    setReadBanner('err', '速读失败：' + String(err.message || err).slice(0, 80));
+  }
 }
 function renderSummary(d, name){
   const s = d.summary; state.summary = s; state.refs = d.references || [];
-  $('read-running').style.display = 'none';
-  $('read-done').style.display = 'block';
-  $('read-meta').textContent = `${name} · ${d.pages || '—'} 页 · ${d.chars} 字`;
+  $('r-filemeta').textContent = `${name} · ${d.pages || '—'} 页 · ${d.chars} 字`;
   $('r-title').textContent = s.title;
   $('r-oneline').textContent = s.one_line;
   $('r-tags').innerHTML = s.keywords.map(k => `<span class="tag">${esc(k)}</span>`).join('');
@@ -648,15 +668,28 @@ function renderSummary(d, name){
     `<div class="term"><div class="term-en">${esc(t.en)}</div><div class="term-zh">${esc(t.zh)}</div><div class="term-note">${esc(t.note)}</div></div>`).join('')
     : '<div class="muted">这篇论文没有可提取的专业术语。</div>';
   $('btn-refs').textContent = `检查这篇论文的参考文献（${state.refs.length} 条）`;
+  $('read-meta').style.display = 'block';
+  $('summary-quick').style.display = 'block';
+  $('summary-full').style.display = 'block';
+  $('summary-terms').style.display = 'block';
+  $('read-actions').style.display = 'block';
+  ['quick-wait','full-wait','terms-wait'].forEach(id => { $(id).style.display = 'none'; });
   $('r-foot').textContent = `生成耗时 ${d.costMs || 0} ms · 内容由 AI 依据原文生成，引用前请核对原文。`;
 }
 function resetRead(){
-  $('read-done').style.display='none'; $('read-error').style.display='none';
-  $('read-idle').style.display='block'; lastFileB64=null; $('pdfpick').value='';
+  readToken++;
+  if (pvViewer) pvViewer.close();
+  $('read-main').style.display = 'none';
+  $('read-idle').style.display = 'block';
+  lastFileB64 = null; $('pdfpick').value = '';
+  $('tab-btn-orig').style.display = '';
+  resetReadTabs();
 }
 function readTab(t){
-  document.querySelectorAll('.tab').forEach(el => el.classList.toggle('on', el.dataset.tab === t));
-  ['quick','full','terms'].forEach(n => $('tab-'+n).style.display = n === t ? 'block' : 'none');
+  document.querySelectorAll('#read-tabs .tab').forEach(el => el.classList.toggle('on', el.dataset.tab === t));
+  ['orig','quick','full','terms'].forEach(n => { $('tab-'+n).style.display = n === t ? 'block' : 'none'; });
+  $('pv-nav').style.display = t === 'orig' ? '' : 'none';
+  if (t !== 'orig') hidePvSheet();
 }
 function copySummary(){
   const s = state.summary; if (!s) return;
@@ -800,8 +833,12 @@ if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worke
 
 function initPreview(){
   if (!window.PreviewCore || !window.pdfjsLib) {
-    $('preview-idle').innerHTML = '<div class="card"><div class="card-title err">预览组件未加载</div>' +
-      '<div class="muted">请在项目根目录执行 npm install，然后重启 npm run preview。</div></div>';
+    const b = $('read-banner');
+    if (b) {
+      b.className = 'read-banner err';
+      b.textContent = '预览组件未加载：请在项目根目录执行 npm install，然后重启 npm run preview';
+      b.style.display = 'block';
+    }
     return;
   }
   pvViewer = PreviewCore.createViewer({
@@ -815,36 +852,18 @@ function initPreview(){
       $('pv-next').classList.toggle('off', d.page >= d.total);
     },
     onCountChange: function (n) { $('pv-count').textContent = n ? n + ' 处标注' : '暂无标注'; },
+    onZoomChange: function (d) { $('pv-zoom').textContent = Math.round(d.zoom * 100) + '%'; },
     onSelection: showPvSheet,
     onHighlightClick: showPvNote
   });
 
-  $('pvpick').onchange = async function (e) {
-    const f = e.target.files && e.target.files[0];
-    e.target.value = '';
-    if (!f) return;
-    if (f.size > 25 * 1024 * 1024) { toast('文件请小于 25MB'); return; }
-    go('preview');
-    $('preview-idle').style.display = 'none';
-    $('preview-viewer').style.display = 'block';
-    $('pv-name').textContent = f.name || 'paper.pdf';
-    $('pv-count').textContent = '加载中…';
-    try {
-      await pvViewer.open(new Uint8Array(await f.arrayBuffer()), f.name || 'paper.pdf');
-      const n = pvViewer.getInfo().count;
-      $('pv-count').textContent = n ? n + ' 处标注' : '暂无标注';
-      if (n) toast('已恢复 ' + n + ' 处标注');
-    } catch (err) {
-      $('preview-viewer').style.display = 'none';
-      $('preview-idle').style.display = 'block';
-      toast('打不开这个 PDF：' + String(err.message || err).slice(0, 70));
-    }
-  };
-
   $('pv-prev').onclick = function () { pvViewer.prev(); };
   $('pv-next').onclick = function () { pvViewer.next(); };
   $('pv-page').onchange = function (e) { pvViewer.goto(e.target.value); };
-  $('pv-change').onclick = function () { $('pvpick').click(); };
+  $('pv-change').onclick = function () { $('pdfpick').click(); };
+  $('pv-zoom-in').onclick = function () { pvViewer.zoomIn(); };
+  $('pv-zoom-out').onclick = function () { pvViewer.zoomOut(); };
+  $('pv-zoom').onclick = function () { pvViewer.resetZoom(); };
   $('pv-export').onclick = exportPv;
   $('pv-sheet-close').onclick = hidePvSheet;
   $('pv-btn-highlight').onclick = doPvHighlight;

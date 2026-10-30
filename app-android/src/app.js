@@ -28,7 +28,7 @@ function toast(msg) {
 }
 
 /* ---------------- 导航 ---------------- */
-const TITLES = { home: '文献助手', read: '论文速读', preview: '论文原文', cite: '参考文献格式校对', translate: '学术翻译', settings: 'API 设置' };
+const TITLES = { home: '文献助手', read: '论文阅读', cite: '参考文献格式校对', translate: '学术翻译', settings: 'API 设置' };
 let cur = 'home';
 const stack = [];
 
@@ -39,7 +39,7 @@ function go(name, push = true) {
     try { history.pushState({ screen: name }, ''); } catch (e) {}
   }
   cur = name;
-  ['home', 'read', 'preview', 'cite', 'translate', 'settings'].forEach(n => {
+  ['home', 'read', 'cite', 'translate', 'settings'].forEach(n => {
     const el = $('screen-' + n);
     if (el) el.hidden = n !== name;
   });
@@ -80,7 +80,7 @@ function renderKey() {
   $('keystate').textContent = k ? '已配置：' + maskKey(k) : '尚未配置，速读与翻译暂不可用';
   $('state-dot').style.color = k ? '#12B76A' : '#B7BFD2';
   $('state-text').textContent = k ? '已配置：' + maskKey(k) : '尚未配置';
-  $('read-needkey').textContent = k ? '' : '当前未配置 Key：可先看格式校对（离线可用），或到「API 设置」填入你自己的 Key';
+  $('read-needkey').textContent = k ? '' : '当前未配置 Key：原文、高亮、格式校对可用；速读与划词翻译需要 Key';
 }
 
 /* ================= 格式校对 ================= */
@@ -197,40 +197,116 @@ function fallbackCopy(text, done) {
   document.body.removeChild(ta);
 }
 
-/* ================= 论文速读 ================= */
+/* ================= 论文阅读（原文 + 速读） ================= */
 let lastRefs = [];
 let lastPdfName = '';
 let lastPdfFile = null;
+let readToken = 0;
+let summaryDone = false;
+
+function setBanner(kind, text, actionText, action) {
+  const bar = $('read-banner');
+  if (!bar) return;
+  if (!text) { bar.hidden = true; return; }
+  bar.hidden = false;
+  bar.className = 'read-banner' + (kind ? ' ' + kind : '');
+  $('read-banner-text').textContent = text;
+  const a = $('read-banner-action');
+  if (actionText) {
+    a.hidden = false;
+    a.textContent = actionText;
+    a.onclick = action;
+  } else {
+    a.hidden = true;
+    a.onclick = null;
+  }
+}
+
+function showReadMain() {
+  $('read-idle').hidden = true;
+  $('read-main').hidden = false;
+}
+function showReadIdle() {
+  $('read-main').hidden = true;
+  $('read-idle').hidden = false;
+  $('pdfpick').value = '';
+}
+
+function resetSummary() {
+  summaryDone = false;
+  ['read-meta', 'summary-quick', 'summary-full', 'summary-terms', 'read-actions']
+    .forEach(id => { $(id).hidden = true; });
+  ['quick-wait', 'full-wait', 'terms-wait'].forEach(id => { $(id).hidden = false; });
+  $('r-filemeta').textContent = '';
+  $('r-title').textContent = '';
+  $('r-oneline').textContent = '';
+  $('r-tags').innerHTML = '';
+  lastRefs = [];
+}
 
 async function onPickFile(e) {
   const file = e.target.files && e.target.files[0];
+  e.target.value = '';
   if (!file) return;
   if (file.size > 25 * 1024 * 1024) { toast('文件请小于 25MB'); return; }
+
+  const token = ++readToken;
   lastPdfName = file.name || 'paper.pdf';
   lastPdfFile = file;
-  show('read-running');
-  $('read-file').textContent = lastPdfName;
+
+  showReadMain();
+  resetSummary();
+  setBanner('', '正在打开 PDF…');
+
   try {
-    $('read-step').textContent = '正在解析 PDF…';
+    await preview.openFile(file);
+  } catch (err) {
+    if (token !== readToken) return;
+    showReadIdle();
+    setBanner('');
+    toast('打不开这个 PDF：' + String(err.message || err).slice(0, 80));
+    return;
+  }
+  if (token !== readToken) return;
+  readTab('orig');
+
+  if (!store.key) {
+    setBanner('warn', '未配置 Key：原文、高亮、格式校对可用；速读与划词翻译需要 Key', '去设置', () => go('settings'));
+    return;
+  }
+  setBanner('', '速读生成中，可先看原文…');
+  runSummary(file, token);
+}
+
+async function runSummary(file, token) {
+  try {
     const buf = await file.arrayBuffer();
     const pdf = await pdfToText(buf);
-    if (pdf.scanned) throw new Error('这是扫描版 PDF，暂时只支持有文字层的 PDF');
-    $('read-step').textContent = '正在生成速读…（约 10–30 秒）';
+    if (token !== readToken) return;
+    if (pdf.scanned) {
+      setBanner('warn', '这是扫描版 PDF：原文可翻页查看，但速读需要文字层（暂无 OCR）');
+      return;
+    }
     const summary = await summarize(pdf.text);
+    if (token !== readToken) return;
     lastRefs = extractReferenceSection(pdf.text).entries;
     renderSummary(summary, pdf);
     bump('papers', 1);
+    setBanner('');
+    toast('速读已生成');
   } catch (err) {
-    $('read-error').hidden = false;
-    $('read-errmsg').textContent = String(err.message || err).slice(0, 200);
-    show('read-error');
-  } finally {
-    e.target.value = '';
+    if (token !== readToken) return;
+    setBanner('err', '速读失败：' + String(err.message || err).slice(0, 90), '重试', () => {
+      const t = ++readToken;
+      setBanner('', '速读生成中，可先看原文…');
+      runSummary(lastPdfFile, t);
+    });
   }
 }
 
 function renderSummary(s, pdf) {
-  $('read-meta').textContent = `${lastPdfName} · ${pdf.pages} 页 · ${pdf.chars} 字`;
+  summaryDone = true;
+  $('r-filemeta').textContent = `${lastPdfName} · ${pdf.pages} 页 · ${pdf.chars} 字`;
   $('r-title').textContent = s.title;
   $('r-oneline').textContent = s.one_line;
   $('r-tags').innerHTML = s.keywords.map(k => `<span class="tag">${esc(k)}</span>`).join('');
@@ -247,17 +323,19 @@ function renderSummary(s, pdf) {
     `<div class="term"><div class="term-en">${esc(t.en)}</div><div class="term-zh">${esc(t.zh)}</div><div class="term-note">${esc(t.note)}</div></div>`).join('')
     : '<div class="muted">这篇论文没有可提取的专业术语。</div>';
   $('btn-refs').textContent = `检查这篇论文的参考文献（${lastRefs.length} 条）`;
-  readTab('quick');
-  show('read-done');
+  $('read-meta').hidden = false;
+  $('summary-quick').hidden = false;
+  $('summary-full').hidden = false;
+  $('summary-terms').hidden = false;
+  $('read-actions').hidden = false;
+  ['quick-wait', 'full-wait', 'terms-wait'].forEach(id => { $(id).hidden = true; });
 }
 
-function show(id) {
-  const ids = ['read-idle', 'read-running', 'read-done', 'read-error'];
-  ids.forEach(x => { const el = $(x); if (el) el.hidden = x !== id; });
-}
 function readTab(t) {
-  document.querySelectorAll('#read-done .tab').forEach(el => el.classList.toggle('on', el.dataset.tab === t));
-  ['quick', 'full', 'terms'].forEach(n => { $('tab-' + n).hidden = n !== t; });
+  document.querySelectorAll('#screen-read .tab').forEach(el => el.classList.toggle('on', el.dataset.tab === t));
+  ['orig', 'quick', 'full', 'terms'].forEach(n => { $('tab-' + n).hidden = n !== t; });
+  $('pv-nav').hidden = t !== 'orig';
+  if (t !== 'orig') preview.hideSheet();
 }
 function goCiteFromPdf() {
   if (!lastRefs.length) { toast('这篇 PDF 没找到参考文献段'); return; }
@@ -315,6 +393,12 @@ function saveKey() {
   $('key-input').value = '';
   renderKey();
   toast('已保存到本机');
+  // 刚配置好 Key、且当前有一篇还没生成速读的论文时，顺手补上
+  if (lastPdfFile && !$('read-main').hidden && !summaryDone) {
+    const t = ++readToken;
+    setBanner('', '速读生成中，可先看原文…');
+    runSummary(lastPdfFile, t);
+  }
 }
 function clearKey() {
   store.key = '';
@@ -335,8 +419,8 @@ function renderBase() {
   if (el) el.placeholder = store.base;
 }
 
-/* ================= 论文原文预览 ================= */
-const preview = createPreview({ go, toast, esc, copy });
+/* ================= 论文阅读预览 ================= */
+const preview = createPreview({ toast, esc, copy });
 
 /* ---------------- 启动 ---------------- */
 window.DA = {
@@ -345,10 +429,6 @@ window.DA = {
   loadSampleEn: () => { $('cite-input').value = SAMPLE_EN; runCite(); },
   onPickFile, readTab, goCiteFromPdf, copySummary, runTranslate, copyAllTranslate,
   testKey, saveKey, clearKey, saveBase,
-  openPreview: () => {
-    if (!lastPdfFile) { toast('请先在「论文速读」里选一份 PDF，或到「论文原文」页选择'); return; }
-    preview.openFile(lastPdfFile);
-  },
   copyText: (text, msg) => copy(text, msg),
   /* 仅用于自测：传入 ArrayBuffer，返回解析与文献抽取结果 */
   pdfTest: async (buf) => {

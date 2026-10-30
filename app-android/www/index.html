@@ -12,6 +12,7 @@
     --ok:#12B76A; --warn:#F2A33A; --err:#E5484D; --line:#EDF0F7;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none!important}
   html,body{height:100%;margin:0}
   body{
     background:var(--bg); color:var(--ink);
@@ -132,6 +133,14 @@
   .pv-mount{display:flex;justify-content:center}
   .pv-hint{text-align:center;font-size:11px;color:var(--ink3);padding:12px 0 20px;line-height:1.6}
 
+  .pv-zoomctl{display:flex;align-items:center;background:#F4F6FB;border-radius:8px;padding:1px;flex:0 0 auto}
+  .pv-zbtn{width:26px;height:28px;line-height:28px;text-align:center;color:var(--pri);font-size:16px;cursor:pointer;user-select:none}
+  .pv-zbtn:active{background:var(--pri-soft);border-radius:6px}
+  .pv-zval{width:44px;text-align:center;font-size:11px;color:var(--ink2);cursor:pointer;user-select:none}
+
+  .pdf-scroll{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}
+  .pdf-page{margin:0 auto}
+
   .pdf-page{position:relative;background:#fff;box-shadow:0 4px 18px rgba(23,35,61,.14);border-radius:2px;overflow:hidden;user-select:none;-webkit-user-select:none}
   .pdf-canvas{display:block}
   .pdf-text-layer{position:absolute;inset:0;overflow:hidden;line-height:1;user-select:text;-webkit-user-select:text}
@@ -180,19 +189,10 @@
     </div>
 
     <div class="card entry" onclick="DA.go('read')">
-      <div class="entry-icon">📄</div>
-      <div class="entry-body">
-        <div class="entry-title">论文速读</div>
-        <div class="entry-desc">选一份 PDF，得到一句话总结、研究方法、核心结论与术语表</div>
-      </div>
-      <div class="entry-arrow">›</div>
-    </div>
-
-    <div class="card entry" onclick="DA.go('preview')">
       <div class="entry-icon">📖</div>
       <div class="entry-body">
-        <div class="entry-title">论文原文</div>
-        <div class="entry-desc">逐页阅读 PDF：划词翻译、高亮并写备注，一键导出 Markdown 笔记</div>
+        <div class="entry-title">论文阅读</div>
+        <div class="entry-desc">选一份 PDF：先读原文、划词翻译、高亮备注；速读要点在后台生成</div>
       </div>
       <div class="entry-arrow">›</div>
     </div>
@@ -241,120 +241,103 @@
     <div class="footnote">支持有文字层的 PDF；扫描版暂不支持。文献内容仅用于本次生成，不做长期保存。</div>
   </section>
 
-  <!-- ============ 论文速读 ============ -->
+  <!-- ============ 论文阅读（原文 + 速读） ============ -->
   <section class="screen" id="screen-read" hidden>
     <div id="read-idle">
       <div class="card">
         <div class="card-title">选一份 PDF</div>
-        <div class="muted">从手机文件里选，25MB 以内。也可以先看格式校对——那个功能不需要 Key。</div>
+        <div class="muted">25MB 以内。选完立即打开原文；速读在后台生成，不打断阅读。</div>
         <div id="read-needkey" class="needkey"></div>
         <div style="height:10px"></div>
         <div class="btn btn-primary" onclick="document.getElementById('pdfpick').click()">选择 PDF 文件</div>
         <input class="file-input" type="file" id="pdfpick" accept="application/pdf" onchange="DA.onPickFile(event)">
       </div>
       <div class="card">
-        <div class="card-title">它会给你什么</div>
-        <div class="muted">① 一句话读懂　② 研究问题 / 方法 / 数据 / 结论　③ 创新点与局限　④ 术语对照表　⑤ 自动抽出参考文献并转成国标</div>
+        <div class="card-title">一个页面，两种读法</div>
+        <div class="muted">原文：逐页阅读、划词翻译、高亮备注（预览与高亮不需要 Key）<br>速读：要点 / 结构 / 术语，并自动联动参考文献校对（需要 Key）</div>
       </div>
     </div>
 
-    <div id="read-running" hidden>
-      <div class="card center">
-        <div class="spinner"></div>
-        <div style="height:10px"></div>
-        <div class="card-title" id="read-file">paper.pdf</div>
-        <div class="muted" id="read-step">正在解析 PDF…</div>
-      </div>
-    </div>
-
-    <div id="read-error" hidden>
-      <div class="card">
-        <div class="card-title err">处理失败</div>
-        <div class="muted" id="read-errmsg"></div>
-        <div style="height:10px"></div>
-        <div class="btn btn-ghost" onclick="DA.go('read', false)">重新选择</div>
-      </div>
-    </div>
-
-    <div id="read-done" hidden>
-      <div class="card">
-        <div class="muted" id="read-meta"></div>
-        <div class="hl-title" id="r-title"></div>
-        <div class="one-line" id="r-oneline"></div>
-        <div style="margin-top:8px" id="r-tags"></div>
-      </div>
-
-      <div class="tabs">
-        <div class="tab on" data-tab="quick" onclick="DA.readTab('quick')">要点</div>
-        <div class="tab" data-tab="full" onclick="DA.readTab('full')">结构</div>
-        <div class="tab" data-tab="terms" onclick="DA.readTab('terms')">术语</div>
-      </div>
-
-      <div id="tab-quick">
-        <div class="card">
-          <div class="sec-label">研究问题</div><div class="sec-body" id="r-problem"></div>
-          <div class="divider"></div>
-          <div class="sec-label">方法</div><div class="sec-body" id="r-method"></div>
-          <div class="divider"></div>
-          <div class="sec-label">数据与实验</div><div class="sec-body" id="r-data"></div>
-        </div>
-        <div class="card"><div class="sec-label">主要结论</div><div id="r-results"></div></div>
-      </div>
-
-      <div id="tab-full" hidden>
-        <div class="card">
-          <div class="sec-label">创新点</div><div id="r-contrib"></div>
-          <div class="divider"></div>
-          <div class="sec-label">局限</div><div id="r-limits"></div>
-        </div>
-        <div class="card"><div class="sec-label">可借鉴之处</div><div id="r-usable"></div></div>
-      </div>
-
-      <div id="tab-terms" hidden>
-        <div class="card"><div class="sec-label" id="r-terms-label">术语对照</div><div id="r-terms"></div></div>
-      </div>
-
-      <div class="card">
-        <div class="btn btn-ghost" onclick="DA.openPreview()">打开原文预览（划词翻译 / 高亮）</div>
-        <div style="height:8px"></div>
-        <div class="btn btn-ghost" id="btn-refs" onclick="DA.goCiteFromPdf()">检查这篇论文的参考文献</div>
-        <div style="height:8px"></div>
-        <div class="btn btn-primary" onclick="DA.copySummary()">复制速读结果</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ 论文原文 ============ -->
-  <section class="screen" id="screen-preview" hidden>
-    <div id="preview-idle">
-      <div class="card">
-        <div class="card-title">打开一篇 PDF</div>
-        <div class="muted">逐页阅读原文：划词翻译（需 Key）、高亮并写备注、导出 Markdown 笔记。标注按文件自动保存在本机。</div>
-        <div style="height:10px"></div>
-        <div class="btn btn-primary" onclick="document.getElementById('pvpick').click()">选择 PDF 文件</div>
-        <input class="file-input" type="file" id="pvpick" accept="application/pdf">
-      </div>
-      <div class="card">
-        <div class="card-title">怎么用</div>
-        <div class="muted">① 长按选词或选句，底部弹出操作条<br>② 点「翻译」看中文，点「高亮」做标记<br>③ 点高亮处可写备注、删除<br>④ 右上角「导出」生成 Markdown 笔记</div>
-      </div>
-    </div>
-
-    <div id="preview-viewer" hidden>
+    <div id="read-main" hidden>
       <div class="pv-bar">
         <span class="pv-name" id="pv-name">paper.pdf</span>
+        <span class="pv-zoomctl">
+          <span class="pv-zbtn" id="pv-zoom-out">−</span>
+          <span class="pv-zval" id="pv-zoom">100%</span>
+          <span class="pv-zbtn" id="pv-zoom-in">+</span>
+        </span>
         <span class="btn-mini" style="margin:0" id="pv-export">导出</span>
-        <span class="btn-mini" style="margin:0 0 0 6px" id="pv-change">换文件</span>
+        <span class="btn-mini" style="margin:0 0 0 6px" id="pv-change">换一篇</span>
       </div>
-      <div class="pv-nav">
+      <div class="pv-nav" id="pv-nav">
         <span class="pv-btn" id="pv-prev">‹</span>
         <input class="pv-page" id="pv-page" type="number" min="1" value="1">
         <span class="pv-total" id="pv-total">/ 1</span>
         <span class="pv-btn" id="pv-next">›</span>
         <span class="pv-count" id="pv-count">暂无标注</span>
       </div>
-      <div class="pv-mount" id="pv-mount"></div>
-      <div class="pv-hint">长按选词 → 翻译 / 高亮；点高亮处加备注</div>
+
+      <div id="read-banner" class="read-banner" hidden>
+        <span id="read-banner-text"></span>
+        <span id="read-banner-action" class="banner-action" hidden></span>
+      </div>
+
+      <div class="tabs">
+        <div class="tab on" data-tab="orig" onclick="DA.readTab('orig')">原文</div>
+        <div class="tab" data-tab="quick" onclick="DA.readTab('quick')">要点</div>
+        <div class="tab" data-tab="full" onclick="DA.readTab('full')">结构</div>
+        <div class="tab" data-tab="terms" onclick="DA.readTab('terms')">术语</div>
+      </div>
+
+      <div id="tab-orig">
+        <div class="pv-mount" id="pv-mount"></div>
+        <div class="pv-hint">长按选词 → 翻译 / 高亮；点高亮处加备注</div>
+      </div>
+
+      <div id="tab-quick" hidden>
+        <div class="card" id="read-meta" hidden>
+          <div class="muted" id="r-filemeta"></div>
+          <div class="hl-title" id="r-title"></div>
+          <div class="one-line" id="r-oneline"></div>
+          <div style="margin-top:8px" id="r-tags"></div>
+        </div>
+        <div id="summary-quick" hidden>
+          <div class="card">
+            <div class="sec-label">研究问题</div><div class="sec-body" id="r-problem"></div>
+            <div class="divider"></div>
+            <div class="sec-label">方法</div><div class="sec-body" id="r-method"></div>
+            <div class="divider"></div>
+            <div class="sec-label">数据与实验</div><div class="sec-body" id="r-data"></div>
+          </div>
+          <div class="card"><div class="sec-label">主要结论</div><div id="r-results"></div></div>
+        </div>
+        <div class="card center muted" id="quick-wait">速读生成后在这里显示，可先看「原文」</div>
+      </div>
+
+      <div id="tab-full" hidden>
+        <div id="summary-full" hidden>
+          <div class="card">
+            <div class="sec-label">创新点</div><div id="r-contrib"></div>
+            <div class="divider"></div>
+            <div class="sec-label">局限</div><div id="r-limits"></div>
+          </div>
+          <div class="card"><div class="sec-label">可借鉴之处</div><div id="r-usable"></div></div>
+        </div>
+        <div class="card center muted" id="full-wait">速读生成后在这里显示，可先看「原文」</div>
+      </div>
+
+      <div id="tab-terms" hidden>
+        <div id="summary-terms" hidden>
+          <div class="card"><div class="sec-label" id="r-terms-label">术语对照</div><div id="r-terms"></div></div>
+        </div>
+        <div class="card center muted" id="terms-wait">速读生成后在这里显示，可先看「原文」</div>
+      </div>
+
+      <div class="card" id="read-actions" hidden>
+        <div class="btn btn-ghost" id="btn-refs" onclick="DA.goCiteFromPdf()">检查这篇论文的参考文献</div>
+        <div style="height:8px"></div>
+        <div class="btn btn-primary" onclick="DA.copySummary()">复制速读结果</div>
+      </div>
     </div>
   </section>
 
