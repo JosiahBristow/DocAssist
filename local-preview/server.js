@@ -23,6 +23,19 @@ const core = require('../shared/docai-core.js');
 const PORT = Number(process.env.PREVIEW_PORT || 5178);
 const MOCK = process.env.MOCK === '1' || !core.hasKey();
 
+/* ---------------- 静态资源：pdf.js（供原文预览） ---------------- */
+const PDFJS_DIRS = [
+  path.join(__dirname, '..', 'node_modules', 'pdfjs-dist', 'legacy', 'build'),
+  path.join(__dirname, '..', 'app-android', 'node_modules', 'pdfjs-dist', 'legacy', 'build')
+];
+function resolvePdfjs(file) {
+  for (const dir of PDFJS_DIRS) {
+    const p = path.join(dir, file);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
 /* ---------------- 示例数据（无 Key 时使用，界面会明确标注） ---------------- */
 const MOCK_SUMMARY = {
   title: 'Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks',
@@ -95,6 +108,18 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true, mock: MOCK, model: process.env.DEEPSEEK_MODEL || 'deepseek-chat' });
   }
 
+  if (u.pathname === '/vendor/pdf.min.js' || u.pathname === '/vendor/pdf.worker.min.js') {
+    const file = resolvePdfjs(path.basename(u.pathname));
+    if (!file) { res.writeHead(404); return res.end('pdfjs-dist 未安装：请在项目根目录执行 npm install'); }
+    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+    return res.end(fs.readFileSync(file));
+  }
+
+  if (u.pathname === '/shared/preview-core.js') {
+    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+    return res.end(fs.readFileSync(path.join(__dirname, '..', 'shared', 'preview-core.js')));
+  }
+
   if (u.pathname === '/api/cite' && req.method === 'POST') {
     try {
       const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
@@ -160,6 +185,25 @@ const server = http.createServer(async (req, res) => {
       const t0 = Date.now();
       const out = await core.translate(text, llmOpts);
       return send(res, 200, { ok: true, data: Object.assign({ costMs: Date.now() - t0 }, out) });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+
+  if (u.pathname === '/api/translateSelection' && req.method === 'POST') {
+    try {
+      const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+      const text = String(body.text || '').trim().slice(0, 1200);
+      if (!text) return send(res, 400, { ok: false, error: '选中内容为空' });
+      const apiKey = String(body.apiKey || '').trim();
+      if (MOCK && !apiKey) {
+        return send(res, 200, {
+          ok: true, mock: true,
+          data: { text: '（示例译文）这里会返回选中片段的学术译文；在「API 设置」填入自己的 Key 后为真实结果。' }
+        });
+      }
+      const out = await core.translateSelection(text, {
+        apiKey: apiKey || undefined, baseUrl: body.baseUrl || undefined
+      });
+      return send(res, 200, { ok: true, data: { text: out } });
     } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
   }
 

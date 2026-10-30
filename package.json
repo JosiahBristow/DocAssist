@@ -6,9 +6,12 @@
   "scripts": {
     "sync": "node scripts/sync.js",
     "preview": "node local-preview/server.js",
-    "test": "node test/test-gb7714.js"
+    "test": "node test/test-gb7714.js && node test/test-annotations.js"
   },
   "dependencies": {
     "pdf-parse": "^1.1.1"
+  },
+  "devDependencies": {
+    "pdfjs-dist": "3.11.174"
   }
 }

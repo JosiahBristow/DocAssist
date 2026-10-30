@@ -16,3 +16,5 @@ copy('shared/gb7714.js', 'miniprogram/utils/gb7714.js');
 copy('shared/refconvert.js', 'miniprogram/utils/refconvert.js');
 copy('shared/refconvert.js', 'cloudfunctions/docai/refconvert.js');
 copy('shared/docai-core.js', 'cloudfunctions/docai/docai-core.js');
+copy('shared/llm-common.js', 'cloudfunctions/docai/llm-common.js');
+copy('shared/refsection.js', 'cloudfunctions/docai/refsection.js');

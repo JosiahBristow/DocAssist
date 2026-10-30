@@ -142,6 +142,18 @@ async function translate(text, opts) {
   return { terms, segments, full: segments.map(s => s.dst).join('\n') };
 }
 
+/** 划词翻译：选中片段直译，不抽术语、不分段，尽量快 */
+async function translateSelection(text, opts) {
+  const o = opts || {};
+  const src = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 1200);
+  if (!src) throw new Error('选中内容为空');
+  const out = await chat([
+    { role: 'system', content: common.SELECTION_SYSTEM },
+    { role: 'user', content: common.selectionPrompt(src) }
+  ], { maxTokens: 800, temperature: 0.1, apiKey: o.apiKey, baseUrl: o.baseUrl });
+  return out;
+}
+
 async function verifyKey(apiKey, baseUrl) {
   const key = String(apiKey || '').trim();
   if (!key) return { ok: false, error: '未填写 Key' };
@@ -170,5 +182,5 @@ module.exports = {
   cleanText: refseg.cleanText,
   extractReferenceSection: refseg.extractReferenceSection,
   looksScanned: refseg.looksScanned,
-  summarize, translate, extractTerms
+  summarize, translate, extractTerms, translateSelection
 };

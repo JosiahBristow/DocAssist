@@ -130,4 +130,14 @@ export async function translate(text, opts) {
   return { terms: terms.filter(t => t.en && t.zh).slice(0, 20), segments };
 }
 
+/** 划词翻译：选中片段直译，不抽术语、不分段，尽量快 */
+export async function translateSelection(text, opts) {
+  const src = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 1200);
+  if (!src) throw new Error('选中内容为空');
+  return chat([
+    { role: 'system', content: common.SELECTION_SYSTEM },
+    { role: 'user', content: common.selectionPrompt(src) }
+  ], Object.assign({ maxTokens: 800, temperature: 0.1 }, opts));
+}
+
 export { store };

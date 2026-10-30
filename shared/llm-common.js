@@ -30,6 +30,10 @@ const TERM_SYSTEM = '你是学术翻译的术语工程师。请从给定英文�
 const TRANSLATE_SYSTEM = '你是学术文献译者。要求：1) 忠实原意，不增删；2) 保留公式、数字、参考文献编号原样；' +
   '3) 术语必须严格采用给定译名；4) 译文为学术书面语，通顺不口语化；5) 只输出译文，不要解释。';
 
+const SELECTION_SYSTEM = '你是学术文献的划词翻译助手。把用户选中的片段翻译成简体中文：' +
+  '若为单词或术语，给出该领域通用译名，必要时附一句极简解释；若为句子，给出忠实、通顺的学术译文。' +
+  '若原文是中文，则译为英文。只输出译文本身，不要引号、不要解释、不要重复原文。';
+
 function mapPrompt(index, total, chunk) {
   return `第 ${index}/${total} 部分：\n${chunk}`;
 }
@@ -44,6 +48,10 @@ function termPrompt(text) {
 
 function translatePrompt(termLine, chunk) {
   return `术语表（必须遵守）：${termLine}\n\n待译文本：\n${chunk}`;
+}
+
+function selectionPrompt(text) {
+  return `选中片段：\n${String(text || '').slice(0, 1200)}`;
 }
 
 function chunkText(text, size, overlap) {
@@ -90,7 +98,7 @@ function parseJsonLoose(s) {
 }
 
 module.exports = {
-  SUMMARY_SCHEMA, SUMMARY_SYSTEM, MAP_SYSTEM, TERM_SYSTEM, TRANSLATE_SYSTEM,
-  mapPrompt, summaryPrompt, termPrompt, translatePrompt,
+  SUMMARY_SCHEMA, SUMMARY_SYSTEM, MAP_SYSTEM, TERM_SYSTEM, TRANSLATE_SYSTEM, SELECTION_SYSTEM,
+  mapPrompt, summaryPrompt, termPrompt, translatePrompt, selectionPrompt,
   chunkText, asList, normalizeSummary, parseJsonLoose
 };

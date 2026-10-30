@@ -120,9 +120,47 @@
   .src{font-size:12px;line-height:1.7;color:var(--ink2)}
   .src-label{font-size:10.5px;color:var(--ink3);margin-bottom:4px}
 
+  /* 论文原文 */
+  .pv-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .pv-name{flex:1;font-size:12px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pv-nav{display:flex;align-items:center;gap:8px;background:#fff;border-radius:10px;padding:6px 10px;margin-bottom:10px;box-shadow:0 2px 10px rgba(23,35,61,.04)}
+  .pv-btn{width:30px;height:30px;line-height:28px;text-align:center;border-radius:8px;background:var(--pri-soft);color:var(--pri);font-size:18px;cursor:pointer;user-select:none}
+  .pv-btn.off{opacity:.35;pointer-events:none}
+  .pv-page{width:46px;height:30px;text-align:center;border:none;background:#F4F6FB;border-radius:8px;font-size:13px;color:var(--ink);outline:none}
+  .pv-total{font-size:12px;color:var(--ink3)}
+  .pv-count{margin-left:auto;font-size:11px;color:var(--ink2)}
+  .pv-mount{display:flex;justify-content:center}
+  .pv-hint{text-align:center;font-size:10.5px;color:var(--ink3);padding:12px 0 20px;line-height:1.6}
+  .pdf-page{position:relative;background:#fff;box-shadow:0 4px 18px rgba(23,35,61,.14);border-radius:2px;overflow:hidden;user-select:none;-webkit-user-select:none}
+  .pdf-canvas{display:block}
+  .pdf-text-layer{position:absolute;inset:0;overflow:hidden;line-height:1;user-select:text;-webkit-user-select:text}
+  .pdf-text-layer span{position:absolute;color:transparent;white-space:pre;transform-origin:0 0;cursor:text}
+  .pdf-hl-layer{position:absolute;inset:0;pointer-events:none}
+  .pdf-hl{position:absolute;background:rgba(255,214,10,.38);border-radius:2px}
+  .pdf-hl.has-note{background:rgba(90,200,250,.34);border-bottom:1.5px solid rgba(43,108,246,.55)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:60;background:#fff;border-radius:18px 18px 0 0;
+    padding:14px 16px 18px;box-shadow:0 -6px 24px rgba(23,35,61,.16);transform:translateY(110%);
+    transition:transform .22s ease;visibility:hidden}
+  .sheet.on{transform:none;visibility:visible}
+  .sheet-grip{width:38px;height:4px;border-radius:2px;background:#E3E8F2;margin:0 auto 10px}
+  .sheet-quote{font-size:12px;line-height:1.65;color:var(--ink2);background:#F8FAFE;border-radius:8px;
+    padding:8px 10px;max-height:88px;overflow:auto;margin-bottom:10px;overflow-wrap:anywhere}
+  .sheet-label{font-size:11px;color:var(--pri);font-weight:600;margin-bottom:3px}
+  .sheet-dst{font-size:14px;line-height:1.75;color:#2A3550;max-height:160px;overflow:auto;overflow-wrap:anywhere}
+  .sheet-err{font-size:12px;line-height:1.6;color:var(--err)}
+  .sheet-loading{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);padding:4px 0 6px}
+  .spinner.sm{width:16px;height:16px;border-width:2px;margin:0}
+  .sheet-close{text-align:center;font-size:12px;color:var(--ink2);padding-top:10px;cursor:pointer}
+  .modal{position:absolute;inset:0;z-index:70;background:rgba(23,35,61,.42);display:flex;align-items:flex-end;
+    opacity:0;pointer-events:none;transition:opacity .18s}
+  .modal.on{opacity:1;pointer-events:auto}
+  .modal-card{background:#fff;border-radius:18px 18px 0 0;padding:16px;width:100%;max-height:82%;overflow:auto}
+  .modal-quote{font-size:12px;line-height:1.65;color:var(--ink2);background:#F8FAFE;border-radius:8px;
+    padding:8px 10px;max-height:90px;overflow:auto;margin:6px 0 10px;overflow-wrap:anywhere}
+  #pv-note-text{min-height:90px}
+
   /* 侧栏说明 */
-  .aside{width:260px;font-size:12.5px;line-height:1.8;color:#3c4a66}
-  .aside h3{font-size:14px;margin:0 0 8px}
+  .aside{width:260px;font-size:12.5px;line-height:1.8;color:#3c4a66}  .aside h3{font-size:14px;margin:0 0 8px}
   .aside code{background:#e7ecf7;padding:1px 4px;border-radius:4px;font-size:11.5px}
   .aside .step{margin-bottom:7px}
   .badge{display:inline-block;background:#dfe7f8;border-radius:6px;padding:2px 7px;font-size:11px;margin-bottom:10px}
@@ -151,6 +189,15 @@
       <div class="entry-body">
         <div class="entry-title">论文速读</div>
         <div class="entry-desc">上传 PDF，得到一句话总结、研究方法、核心结论与术语表</div>
+      </div>
+      <div class="entry-arrow">›</div>
+    </div>
+
+    <div class="card entry" onclick="go('preview')">
+      <div class="entry-icon">📖</div>
+      <div class="entry-body">
+        <div class="entry-title">论文原文</div>
+        <div class="entry-desc">逐页阅读 PDF：划词翻译、高亮并写备注，一键导出 Markdown 笔记</div>
       </div>
       <div class="entry-arrow">›</div>
     </div>
@@ -304,6 +351,40 @@
     <div id="cite-result"></div>
   </div>
 
+  <!-- ============ 论文原文 ============ -->
+  <div class="screen" id="screen-preview" style="display:none">
+    <div id="preview-idle">
+      <div class="card">
+        <div class="card-title">打开一篇 PDF</div>
+        <div class="muted">逐页阅读原文：划词翻译、高亮并写备注、导出 Markdown 笔记。标注按文件自动保存在本机浏览器。</div>
+        <div style="height:12px"></div>
+        <div class="btn btn-primary" onclick="document.getElementById('pvpick').click()">选择 PDF 文件</div>
+        <input class="file-input" type="file" id="pvpick" accept="application/pdf">
+      </div>
+      <div class="card">
+        <div class="card-title">怎么用</div>
+        <div class="muted">① 拖选文字，底部弹出操作条<br>② 点「翻译」看中文，点「高亮」做标记<br>③ 点高亮处可写备注、删除<br>④ 右上角「导出」生成 Markdown 笔记</div>
+      </div>
+    </div>
+
+    <div id="preview-viewer" style="display:none">
+      <div class="pv-bar">
+        <span class="pv-name" id="pv-name">paper.pdf</span>
+        <span class="btn-mini" style="margin:0" id="pv-export">导出</span>
+        <span class="btn-mini" style="margin:0 0 0 6px" id="pv-change">换文件</span>
+      </div>
+      <div class="pv-nav">
+        <span class="pv-btn" id="pv-prev">‹</span>
+        <input class="pv-page" id="pv-page" type="number" min="1" value="1">
+        <span class="pv-total" id="pv-total">/ 1</span>
+        <span class="pv-btn" id="pv-next">›</span>
+        <span class="pv-count" id="pv-count">暂无标注</span>
+      </div>
+      <div class="pv-mount" id="pv-mount"></div>
+      <div class="pv-hint">拖选文字 → 翻译 / 高亮；点高亮处加备注</div>
+    </div>
+  </div>
+
   <!-- ============ 翻译 ============ -->
   <div class="screen" id="screen-translate" style="display:none">
     <div class="card">
@@ -351,6 +432,32 @@
 
     <div class="footnote">不要把 Key 发到群聊或截图里；本作品不会收集你的 Key，也无法读取你在其他应用里的 Key。</div>
   </div>
+
+  <!-- 划词操作条 -->
+  <div class="sheet" id="pv-sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-quote" id="pv-sheet-text"></div>
+    <div id="pv-sheet-result"></div>
+    <div class="row" id="pv-sheet-actions">
+      <div class="btn btn-ghost" id="pv-btn-translate">翻译</div>
+      <div class="btn btn-primary" id="pv-btn-highlight">高亮</div>
+    </div>
+    <div class="sheet-close" id="pv-sheet-close">取消</div>
+  </div>
+
+  <!-- 备注弹窗 -->
+  <div class="modal" id="pv-note">
+    <div class="modal-card">
+      <div class="card-title">标注备注</div>
+      <div class="modal-quote" id="pv-note-quote"></div>
+      <textarea id="pv-note-text" placeholder="写一句你的想法，比如：这个方法可以借鉴…"></textarea>
+      <div class="row" style="margin-top:10px">
+        <div class="btn btn-ghost" id="pv-note-del">删除</div>
+        <div class="btn btn-primary" id="pv-note-save">保存备注</div>
+      </div>
+      <div class="sheet-close" id="pv-note-close">关闭</div>
+    </div>
+  </div>
 </div>
 
 <aside class="aside">
@@ -360,6 +467,7 @@
   <h3>现在能验证什么</h3>
   <p class="step">✅ 格式校对：真实校验，18 条规则</p>
   <p class="step">✅ PDF 解析 + 参考文献段抽取</p>
+  <p class="step">✅ 论文原文预览：划词翻译 / 高亮备注 / 导出 Markdown</p>
   <p class="step">✅ 摘要/翻译链路（需 .env 里的 DeepSeek Key）</p>
   <h3>启动</h3>
   <p><code>npm install</code> → <code>npm run preview</code> → 打开 <code>127.0.0.1:5178</code></p>
@@ -367,6 +475,8 @@
   <p>把同一份 <code>miniprogram/</code> 用微信开发者工具打开，接入云开发环境，即可扫码体验。</p>
 </aside>
 
+<script src="/vendor/pdf.min.js"></script>
+<script src="/shared/preview-core.js"></script>
 <script>
 const state = { refs: [], summary: null, mock: false };
 
@@ -390,13 +500,14 @@ function toast(msg) {
 const $ = id => document.getElementById(id);
 
 /* ---------- 导航 ---------- */
-const TITLES = { home: '文献助手', read: '论文速读', cite: '参考文献格式校对', translate: '学术翻译', settings: 'API 设置' };
+const TITLES = { home: '文献助手', read: '论文速读', preview: '论文原文', cite: '参考文献格式校对', translate: '学术翻译', settings: 'API 设置' };
 function go(name){
-  ['home','read','cite','translate','settings'].forEach(n => $('screen-'+n).style.display = n === name ? 'block' : 'none');
+  ['home','read','preview','cite','translate','settings'].forEach(n => $('screen-'+n).style.display = n === name ? 'block' : 'none');
   $('navtitle').textContent = TITLES[name];
   $('back').style.display = name === 'home' ? 'none' : 'block';
   $('navbar').className = 'navbar ' + (name === 'home' ? 'center' : 'title-left');
   $('screen-'+name).scrollTop = 0;
+  if (name !== 'preview') hidePvSheet();
 }
 $('back').onclick = () => go('home');
 
@@ -668,6 +779,140 @@ function runTranslate(){
       $('tr-result').innerHTML = html;
     }).catch(e=>{ $('tr-result').innerHTML = `<div class="card"><div class="card-title err">出错了</div><div class="muted">${esc(e.message)}</div></div>`; });
 }
+
+/* ---------- 论文原文预览 ---------- */
+let pvViewer = null, pvSel = null, pvActive = null;
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.js';
+
+function initPreview(){
+  if (!window.PreviewCore || !window.pdfjsLib) {
+    $('preview-idle').innerHTML = '<div class="card"><div class="card-title err">预览组件未加载</div>' +
+      '<div class="muted">请在项目根目录执行 npm install，然后重启 npm run preview。</div></div>';
+    return;
+  }
+  pvViewer = PreviewCore.createViewer({
+    pdfjsLib: window.pdfjsLib,
+    mount: $('pv-mount'),
+    storage: localStorage,
+    onPageChange: function (d) {
+      $('pv-page').value = d.page;
+      $('pv-total').textContent = '/ ' + d.total;
+      $('pv-prev').classList.toggle('off', d.page <= 1);
+      $('pv-next').classList.toggle('off', d.page >= d.total);
+    },
+    onCountChange: function (n) { $('pv-count').textContent = n ? n + ' 处标注' : '暂无标注'; },
+    onSelection: showPvSheet,
+    onHighlightClick: showPvNote
+  });
+
+  $('pvpick').onchange = async function (e) {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    if (f.size > 25 * 1024 * 1024) { toast('文件请小于 25MB'); return; }
+    go('preview');
+    $('preview-idle').style.display = 'none';
+    $('preview-viewer').style.display = 'block';
+    $('pv-name').textContent = f.name || 'paper.pdf';
+    $('pv-count').textContent = '加载中…';
+    try {
+      await pvViewer.open(new Uint8Array(await f.arrayBuffer()), f.name || 'paper.pdf');
+      const n = pvViewer.getInfo().count;
+      $('pv-count').textContent = n ? n + ' 处标注' : '暂无标注';
+      if (n) toast('已恢复 ' + n + ' 处标注');
+    } catch (err) {
+      $('preview-viewer').style.display = 'none';
+      $('preview-idle').style.display = 'block';
+      toast('打不开这个 PDF：' + String(err.message || err).slice(0, 70));
+    }
+  };
+
+  $('pv-prev').onclick = function () { pvViewer.prev(); };
+  $('pv-next').onclick = function () { pvViewer.next(); };
+  $('pv-page').onchange = function (e) { pvViewer.goto(e.target.value); };
+  $('pv-change').onclick = function () { $('pvpick').click(); };
+  $('pv-export').onclick = exportPv;
+  $('pv-sheet-close').onclick = hidePvSheet;
+  $('pv-btn-highlight').onclick = doPvHighlight;
+  $('pv-btn-translate').onclick = doPvTranslate;
+  $('pv-note-save').onclick = savePvNote;
+  $('pv-note-del').onclick = deletePvNote;
+  $('pv-note-close').onclick = hidePvNote;
+}
+
+function showPvSheet(sel){
+  pvSel = sel;
+  $('pv-sheet-text').textContent = sel.text;
+  $('pv-sheet-result').innerHTML = '';
+  $('pv-sheet-actions').style.display = '';
+  $('pv-sheet').classList.add('on');
+}
+function hidePvSheet(){
+  const s = $('pv-sheet'); if (s) s.classList.remove('on');
+  pvSel = null;
+}
+async function doPvTranslate(){
+  if (!pvSel) return;
+  $('pv-sheet-actions').style.display = 'none';
+  $('pv-sheet-result').innerHTML = '<div class="sheet-loading"><span class="spinner sm"></span><span>正在翻译…</span></div>';
+  try {
+    const r = await fetch('/api/translateSelection', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: pvSel.text, apiKey: getKey() })
+    }).then(function (x) { return x.json(); });
+    if (!r.ok) throw new Error(r.error || '翻译失败');
+    $('pv-sheet-result').innerHTML = '<div class="sheet-label">译文</div><div class="sheet-dst">' + esc(r.data.text) + '</div>';
+  } catch (e) {
+    $('pv-sheet-result').innerHTML = '<div class="sheet-err">' + esc(e.message || e) + '</div>';
+  } finally {
+    $('pv-sheet-actions').style.display = '';
+  }
+}
+function doPvHighlight(){
+  if (!pvSel) return;
+  try {
+    const ann = pvViewer.addHighlight(pvSel, '');
+    hidePvSheet();
+    const sel = window.getSelection(); if (sel) sel.removeAllRanges();
+    toast('已高亮 · 点高亮处可加备注');
+    if (ann) showPvNote(ann, true);
+  } catch (e) { toast(String(e.message || e)); }
+}
+function showPvNote(ann, fresh){
+  pvActive = ann;
+  $('pv-note-quote').textContent = ann.text;
+  $('pv-note-text').value = ann.note || '';
+  $('pv-note').classList.add('on');
+  if (!fresh) setTimeout(function () { $('pv-note-text').focus(); }, 50);
+}
+function hidePvNote(){
+  $('pv-note').classList.remove('on');
+  pvActive = null;
+}
+function savePvNote(){
+  if (!pvActive) return;
+  pvViewer.setNote(pvActive.id, $('pv-note-text').value.trim());
+  hidePvNote();
+  toast('备注已保存');
+}
+function deletePvNote(){
+  if (!pvActive) return;
+  pvViewer.removeHighlight(pvActive.id);
+  hidePvNote();
+  toast('已删除这处标注');
+}
+function exportPv(){
+  if (!pvViewer || !pvViewer.getInfo().hasDoc) return;
+  if (!pvViewer.getInfo().count) { toast('还没有标注，先选中文字点「高亮」'); return; }
+  const md = pvViewer.exportMarkdown();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown;charset=utf-8' }));
+  a.download = '论文标注-' + (pvViewer.getInfo().name || 'paper').replace(/\.pdf$/i, '') + '.md';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  toast('已导出 Markdown');
+}
+initPreview();
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 </script>

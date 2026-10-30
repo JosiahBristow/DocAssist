@@ -7,6 +7,7 @@ import * as gb from '../../shared/gb7714.js';
 import { extractReferenceSection } from '../../shared/refsection.js';
 import { pdfToText } from './pdftext.js';
 import { summarize, translate, verifyKey, store } from './llm.js';
+import { createPreview } from './preview.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -27,7 +28,7 @@ function toast(msg) {
 }
 
 /* ---------------- 导航 ---------------- */
-const TITLES = { home: '文献助手', read: '论文速读', cite: '参考文献格式校对', translate: '学术翻译', settings: 'API 设置' };
+const TITLES = { home: '文献助手', read: '论文速读', preview: '论文原文', cite: '参考文献格式校对', translate: '学术翻译', settings: 'API 设置' };
 let cur = 'home';
 const stack = [];
 
@@ -38,7 +39,7 @@ function go(name, push = true) {
     try { history.pushState({ screen: name }, ''); } catch (e) {}
   }
   cur = name;
-  ['home', 'read', 'cite', 'translate', 'settings'].forEach(n => {
+  ['home', 'read', 'preview', 'cite', 'translate', 'settings'].forEach(n => {
     const el = $('screen-' + n);
     if (el) el.hidden = n !== name;
   });
@@ -198,12 +199,14 @@ function fallbackCopy(text, done) {
 /* ================= 论文速读 ================= */
 let lastRefs = [];
 let lastPdfName = '';
+let lastPdfFile = null;
 
 async function onPickFile(e) {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
   if (file.size > 25 * 1024 * 1024) { toast('文件请小于 25MB'); return; }
   lastPdfName = file.name || 'paper.pdf';
+  lastPdfFile = file;
   show('read-running');
   $('read-file').textContent = lastPdfName;
   try {
@@ -331,6 +334,9 @@ function renderBase() {
   if (el) el.placeholder = store.base;
 }
 
+/* ================= 论文原文预览 ================= */
+const preview = createPreview({ go, toast, esc, copy });
+
 /* ---------------- 启动 ---------------- */
 window.DA = {
   go, back, runCite, fixAll, copyList, copyBib, copyOne, clearCite, toggleItem,
@@ -338,6 +344,11 @@ window.DA = {
   loadSampleEn: () => { $('cite-input').value = SAMPLE_EN; runCite(); },
   onPickFile, readTab, goCiteFromPdf, copySummary, runTranslate, copyAllTranslate,
   testKey, saveKey, clearKey, saveBase,
+  openPreview: () => {
+    if (!lastPdfFile) { toast('请先在「论文速读」里选一份 PDF，或到「论文原文」页选择'); return; }
+    preview.openFile(lastPdfFile);
+  },
+  copyText: (text, msg) => copy(text, msg),
   /* 仅用于自测：传入 ArrayBuffer，返回解析与文献抽取结果 */
   pdfTest: async (buf) => {
     const pdf = await pdfToText(buf);
