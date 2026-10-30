@@ -52,6 +52,7 @@ function back() {
   if (stack.length) { history.back(); return; }
   go('home', false);
 }
+$('back').addEventListener('click', back);
 window.addEventListener('popstate', () => {
   const prev = stack.pop() || 'home';
   go(prev, false);

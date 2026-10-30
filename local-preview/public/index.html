@@ -501,7 +501,14 @@ const $ = id => document.getElementById(id);
 
 /* ---------- 导航 ---------- */
 const TITLES = { home: '文献助手', read: '论文速读', preview: '论文原文', cite: '参考文献格式校对', translate: '学术翻译', settings: 'API 设置' };
-function go(name){
+let cur = 'home';
+const stack = [];
+function go(name, push){
+  if (push !== false && name !== cur) {
+    stack.push(cur);
+    try { history.pushState({ screen: name }, ''); } catch (e) {}
+  }
+  cur = name;
   ['home','read','preview','cite','translate','settings'].forEach(n => $('screen-'+n).style.display = n === name ? 'block' : 'none');
   $('navtitle').textContent = TITLES[name];
   $('back').style.display = name === 'home' ? 'none' : 'block';
@@ -509,7 +516,14 @@ function go(name){
   $('screen-'+name).scrollTop = 0;
   if (name !== 'preview') hidePvSheet();
 }
-$('back').onclick = () => go('home');
+function back(){
+  if (stack.length) { history.back(); return; }
+  go('home', false);
+}
+window.addEventListener('popstate', function () {
+  go(stack.pop() || 'home', false);
+});
+$('back').onclick = back;
 
 /* ---------- 统计 ---------- */
 function bump(key, n){
