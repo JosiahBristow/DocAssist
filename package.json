@@ -1,6 +1,6 @@
 {
   "name": "docassist",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "文献助手 · 校园文献阅读与写作辅助（微信小程序 + 云开发）",
   "scripts": {
