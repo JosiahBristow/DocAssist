@@ -263,6 +263,31 @@ const server = http.createServer(async (req, res) => {
     } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
   }
 
+  if (u.pathname === '/api/assistant' && req.method === 'POST') {
+    try {
+      const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+      const question = String(body.question || '').trim();
+      const apiKey = String(body.apiKey || '').trim();
+      if (!question && !body.image) return send(res, 400, { ok: false, error: '请输入问题' });
+      if (MOCK && !apiKey) {
+        return send(res, 200, {
+          ok: true, mock: true,
+          data: { text: '（示例回答）配置 Key 后，这里会返回 AI 对选中内容或图片的解答。' }
+        });
+      }
+      const text = await core.askAssistant({
+        question: question,
+        context: body.context,
+        image: body.image,
+        history: body.history,
+        model: body.model,
+        apiKey: apiKey || undefined,
+        baseUrl: body.baseUrl || undefined
+      });
+      return send(res, 200, { ok: true, data: { text: text } });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+
   send(res, 404, { ok: false, error: 'not found' });
 });
 

@@ -13,6 +13,7 @@ export function createPreview(opts) {
   const toast = opts.toast;
   const copy = opts.copy;
   const esc = opts.esc;
+  const onAskAI = opts.onAskAI;
 
   let viewer = null;
   let pendingSel = null;
@@ -50,6 +51,7 @@ export function createPreview(opts) {
     $('pv-sheet-close').addEventListener('click', hideSheet);
     $('pv-btn-highlight').addEventListener('click', doHighlight);
     $('pv-btn-translate').addEventListener('click', doTranslate);
+    $('pv-btn-ai').addEventListener('click', doAskAI);
     $('pv-note-save').addEventListener('click', saveNote);
     $('pv-note-del').addEventListener('click', deleteNote);
     $('pv-note-close').addEventListener('click', hideNote);
@@ -129,6 +131,28 @@ export function createPreview(opts) {
     }
   }
 
+  function doAskAI() {
+    if (!pendingSel) return;
+    const text = pendingSel.text;
+    hideSheet();
+    const sel = window.getSelection();
+    if (sel) sel.removeAllRanges();
+    if (onAskAI) onAskAI(text);
+  }
+
+  /** 当前页截图（JPEG dataURL），用于图片提问 */
+  function pageImage() {
+    const c = document.querySelector('#pv-mount .pdf-canvas');
+    if (!c || !c.width) return '';
+    const max = 1400;
+    const scale = Math.min(1, max / c.width);
+    const tmp = document.createElement('canvas');
+    tmp.width = Math.round(c.width * scale);
+    tmp.height = Math.round(c.height * scale);
+    tmp.getContext('2d').drawImage(c, 0, 0, tmp.width, tmp.height);
+    return tmp.toDataURL('image/jpeg', 0.75);
+  }
+
   /* ---------------- 备注弹窗 ---------------- */
   function showNote(ann, fresh) {
     activeHl = ann;
@@ -161,5 +185,5 @@ export function createPreview(opts) {
   }
 
   init();
-  return { openFile, reset, hideSheet };
+  return { openFile, reset, hideSheet, pageImage };
 }

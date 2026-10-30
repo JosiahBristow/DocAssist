@@ -154,6 +154,16 @@ async function translateSelection(text, opts) {
   return out;
 }
 
+/** 悬浮 AI 助手：支持选中内容与图片（图片需要视觉模型） */
+async function askAssistant(opts) {
+  const o = opts || {};
+  const messages = common.buildAssistantMessages(o);
+  return chat(messages, {
+    maxTokens: 1400, temperature: 0.3,
+    apiKey: o.apiKey, baseUrl: o.baseUrl, model: o.model
+  });
+}
+
 async function verifyKey(apiKey, baseUrl) {
   const key = String(apiKey || '').trim();
   if (!key) return { ok: false, error: '未填写 Key' };
@@ -182,5 +192,5 @@ module.exports = {
   cleanText: refseg.cleanText,
   extractReferenceSection: refseg.extractReferenceSection,
   looksScanned: refseg.looksScanned,
-  summarize, translate, extractTerms, translateSelection
+  summarize, translate, extractTerms, translateSelection, askAssistant
 };

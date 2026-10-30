@@ -34,6 +34,10 @@ const SELECTION_SYSTEM = '你是学术文献的划词翻译助手。把用户选
   '若为单词或术语，给出该领域通用译名，必要时附一句极简解释；若为句子，给出忠实、通顺的学术译文。' +
   '若原文是中文，则译为英文。只输出译文本身，不要引号、不要解释、不要重复原文。';
 
+const ASSISTANT_SYSTEM = '你是文献阅读助手，服务对象是本科生。回答规则：' +
+  '1) 优先依据用户提供的选中内容或图片；2) 不编造原文没有的信息，不确定就明确说明；' +
+  '3) 用简体中文，先给结论，再分点解释；4) 遇到术语或公式，先用通俗语言解释再用。';
+
 function mapPrompt(index, total, chunk) {
   return `第 ${index}/${total} 部分：\n${chunk}`;
 }
@@ -52,6 +56,39 @@ function translatePrompt(termLine, chunk) {
 
 function selectionPrompt(text) {
   return `选中片段：\n${String(text || '').slice(0, 1200)}`;
+}
+
+function assistantPrompt(context, question) {
+  const c = String(context || '').replace(/\s+/g, ' ').trim().slice(0, 4000);
+  const q = String(question || '').trim();
+  return (c ? `【选中内容】\n${c}\n\n` : '') + `【问题】\n${q}`;
+}
+
+/** 组装 AI 助手的消息：system + 最近 8 轮历史 + 本次问题（可带图片） */
+function buildAssistantMessages(opts) {
+  const o = opts || {};
+  const history = Array.isArray(o.history) ? o.history.slice(-8) : [];
+  const messages = [{ role: 'system', content: ASSISTANT_SYSTEM }];
+  for (const m of history) {
+    if (!m || (m.role !== 'user' && m.role !== 'assistant')) continue;
+    const text = String(m.content || '').trim();
+    if (text) messages.push({ role: m.role, content: text.slice(0, 4000) });
+  }
+  const q = String(o.question || '').trim() || (o.image ? '请解释这张图片的内容' : '');
+  if (!q) throw new Error('请先输入问题');
+  const text = assistantPrompt(o.context, q);
+  if (o.image && /^data:image\//.test(o.image)) {
+    messages.push({
+      role: 'user',
+      content: [
+        { type: 'text', text: text },
+        { type: 'image_url', image_url: { url: o.image } }
+      ]
+    });
+  } else {
+    messages.push({ role: 'user', content: text });
+  }
+  return messages;
 }
 
 function chunkText(text, size, overlap) {
@@ -98,7 +135,8 @@ function parseJsonLoose(s) {
 }
 
 module.exports = {
-  SUMMARY_SCHEMA, SUMMARY_SYSTEM, MAP_SYSTEM, TERM_SYSTEM, TRANSLATE_SYSTEM, SELECTION_SYSTEM,
+  SUMMARY_SCHEMA, SUMMARY_SYSTEM, MAP_SYSTEM, TERM_SYSTEM, TRANSLATE_SYSTEM, SELECTION_SYSTEM, ASSISTANT_SYSTEM,
   mapPrompt, summaryPrompt, termPrompt, translatePrompt, selectionPrompt,
+  assistantPrompt, buildAssistantMessages,
   chunkText, asList, normalizeSummary, parseJsonLoose
 };

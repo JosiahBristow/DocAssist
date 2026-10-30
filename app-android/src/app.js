@@ -9,6 +9,7 @@ import { pdfToText } from './pdftext.js';
 import { summarize, translate, verifyKey, store } from './llm.js';
 import { createPreview } from './preview.js';
 import { createSimilarSearch } from './search.js';
+import { createAssistant } from './assistant.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -423,8 +424,23 @@ function renderBase() {
   if (el) el.placeholder = store.base;
 }
 
-/* ================= 论文阅读预览 ================= */
-const preview = createPreview({ toast, esc, copy });
+function saveModel() {
+  const v = ($('model-input').value || '').trim();
+  store.model = v;
+  $('model-input').value = '';
+  renderModel();
+  toast(v ? '模型名称已保存：' + v : '已恢复默认模型');
+}
+function renderModel() {
+  const el = $('model-input');
+  if (el) el.placeholder = store.model;
+}
+
+/* ================= 论文阅读预览 + AI 助手 ================= */
+let preview;
+let assistant;
+preview = createPreview({ toast, esc, copy, onAskAI: text => assistant.askAbout(text) });
+assistant = createAssistant({ toast, esc, go, getPageImage: () => preview.pageImage() });
 const similar = createSimilarSearch({ toast, esc, copy });
 
 /* ---------------- 启动 ---------------- */
@@ -433,7 +449,7 @@ window.DA = {
   loadSample: () => { $('cite-input').value = SAMPLE; runCite(); },
   loadSampleEn: () => { $('cite-input').value = SAMPLE_EN; runCite(); },
   onPickFile, readTab, goCiteFromPdf, copySummary, runTranslate, copyAllTranslate,
-  testKey, saveKey, clearKey, saveBase,
+  testKey, saveKey, clearKey, saveBase, saveModel,
   copyText: (text, msg) => copy(text, msg),
   /* 仅用于自测：传入 ArrayBuffer，返回解析与文献抽取结果 */
   pdfTest: async (buf) => {
@@ -446,4 +462,5 @@ window.DA = {
 renderStats();
 renderKey();
 renderBase();
+renderModel();
 go('home', false);

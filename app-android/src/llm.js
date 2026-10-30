@@ -7,14 +7,16 @@ import * as common from '../../shared/llm-common.js';
 import * as searchLinks from '../../shared/search-links.js';
 
 const DEFAULT_BASE = 'https://api.deepseek.com/v1';
-const MODEL = 'deepseek-chat';
+const DEFAULT_MODEL = 'deepseek-chat';
 const TIMEOUT_MS = 60000;
 
 const store = {
   get key() { return (localStorage.getItem('docai_key') || '').trim(); },
   set key(v) { localStorage.setItem('docai_key', String(v || '').trim()); },
   get base() { return (localStorage.getItem('docai_base') || '').trim() || DEFAULT_BASE; },
-  set base(v) { localStorage.setItem('docai_base', String(v || '').trim()); }
+  set base(v) { localStorage.setItem('docai_base', String(v || '').trim()); },
+  get model() { return (localStorage.getItem('docai_model') || '').trim() || DEFAULT_MODEL; },
+  set model(v) { localStorage.setItem('docai_model', String(v || '').trim()); }
 };
 
 function capHttp() {
@@ -54,7 +56,7 @@ async function chat(messages, opts) {
   if (!key) throw new Error('尚未配置 API Key：请到「API 设置」填入你自己的 DeepSeek Key（格式校对不需要 Key）');
   const url = (o.baseUrl || store.base).replace(/\/$/, '') + '/chat/completions';
   const body = {
-    model: o.model || MODEL,
+    model: o.model || store.model,
     messages,
     temperature: o.temperature == null ? 0.2 : o.temperature,
     max_tokens: o.maxTokens || 3000,
@@ -139,6 +141,13 @@ export async function translateSelection(text, opts) {
     { role: 'system', content: common.SELECTION_SYSTEM },
     { role: 'user', content: common.selectionPrompt(src) }
   ], Object.assign({ maxTokens: 800, temperature: 0.1 }, opts));
+}
+
+/** 悬浮 AI 助手：支持选中内容与图片（图片需要视觉模型） */
+export async function askAssistant(opts) {
+  const o = opts || {};
+  const messages = common.buildAssistantMessages(o);
+  return chat(messages, { maxTokens: 1400, temperature: 0.3, model: o.model });
 }
 
 /**

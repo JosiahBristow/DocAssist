@@ -150,6 +150,41 @@
   .sim-meta{font-size:10.5px;color:var(--ink2);margin-top:4px;line-height:1.5}
   .sim-abs{font-size:11.5px;line-height:1.7;color:#2A3550;background:#F8FAFE;border-radius:8px;padding:8px 10px;margin-top:8px;max-height:170px;overflow:auto}
   .sim-actions{margin-top:8px}
+
+  /* 悬浮 AI 助手 */
+  .ai-fab{position:absolute;right:14px;bottom:74px;width:48px;height:48px;border-radius:50%;
+    background:linear-gradient(135deg,#1B3A8C,#2B6CF6);color:#fff;font-size:21px;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 18px rgba(27,58,140,.35);cursor:pointer;z-index:55;user-select:none}
+  .ai-fab:active{transform:scale(.96)}
+  .ai-panel{position:absolute;left:0;right:0;bottom:0;z-index:80;height:76%;background:#fff;border-radius:18px 18px 0 0;
+    box-shadow:0 -8px 30px rgba(23,35,61,.2);display:flex;flex-direction:column;
+    transform:translateY(105%);transition:transform .24s ease;visibility:hidden}
+  .ai-panel.on{transform:none;visibility:visible}
+  .ai-head{display:flex;align-items:center;gap:8px;padding:12px 14px 8px;border-bottom:1px solid var(--line)}
+  .ai-title{font-size:14.5px;font-weight:600;flex:1}
+  .ai-tools{display:flex;align-items:center;gap:9px}
+  .ai-tool{font-size:10.5px;color:var(--pri);cursor:pointer}
+  .ai-close{font-size:15px;color:var(--ink3);cursor:pointer}
+  .ai-keyhint{background:#FFF8E8;color:#8A5A00;font-size:11px;line-height:1.5;padding:7px 14px}
+  .ai-msgs{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+  .ai-empty{font-size:11.5px;color:var(--ink3);line-height:1.7;text-align:center;margin:24px 6px}
+  .ai-msg{display:flex;flex-direction:column;gap:4px;max-width:88%}
+  .ai-msg.user{align-self:flex-end;align-items:flex-end}
+  .ai-msg.assistant{align-self:flex-start}
+  .ai-bubble{font-size:12.5px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;padding:9px 12px;border-radius:12px;background:#F4F6FB;color:#2A3550}
+  .ai-msg.user .ai-bubble{background:var(--pri);color:#fff}
+  .ai-msg.typing .ai-bubble{color:var(--ink2)}
+  .ai-msg-img{max-width:160px;border-radius:10px;border:1px solid var(--line)}
+  .ai-attach{display:flex;align-items:center;gap:8px;padding:0 14px 6px;flex-wrap:wrap}
+  .ai-chip{font-size:10.5px;color:var(--ink2);background:#F4F6FB;border-radius:8px;padding:4px 8px;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ai-chipx{font-size:12px;color:var(--ink3);cursor:pointer}
+  .ai-thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+  .ai-img-note{font-size:10px;color:var(--warn);width:100%;line-height:1.4}
+  .ai-inputbar{display:flex;align-items:center;gap:7px;padding:8px 14px 12px;border-top:1px solid var(--line)}
+  .ai-imgbtn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:#F4F6FB;border-radius:8px;font-size:16px;cursor:pointer;flex:0 0 auto}
+  .ai-inputbar input{flex:1;height:36px;border:none;background:#F8FAFE;border-radius:9px;padding:0 11px;font-size:12.5px;outline:none;color:var(--ink)}
+  .ai-send{flex:0 0 auto;height:32px;line-height:32px;padding:0 13px;border-radius:9px;background:var(--pri);color:#fff;font-size:12px;font-weight:600;cursor:pointer}
+  .ai-send.off{opacity:.5;pointer-events:none}
   .pdf-page{position:relative;background:#fff;box-shadow:0 4px 18px rgba(23,35,61,.14);border-radius:2px;overflow:hidden;user-select:none;-webkit-user-select:none}
   .pdf-canvas{display:block}
   .pdf-text-layer{position:absolute;inset:0;overflow:hidden;line-height:1;user-select:text;-webkit-user-select:text}
@@ -444,6 +479,16 @@
       <div class="muted">费用参考：单篇论文速读约消耗 2–6 千 tokens，按现行价格约几分钱；格式校对不消耗 tokens。</div>
     </div>
 
+    <div class="card">
+      <div class="card-title">模型名称</div>
+      <div class="muted">默认 deepseek-chat。要用图片提问，请填写支持视觉的模型（如 gpt-4o、qwen-vl-max）。</div>
+      <div style="height:8px"></div>
+      <input id="model-input" type="text" placeholder="deepseek-chat"
+        style="width:100%;height:40px;border:none;background:#F8FAFE;border-radius:8px;padding:0 10px;font-size:12.5px;outline:none">
+      <div style="height:8px"></div>
+      <div class="btn btn-ghost" onclick="saveModel()">保存模型名称</div>
+    </div>
+
     <div class="footnote">不要把 Key 发到群聊或截图里；本作品不会收集你的 Key，也无法读取你在其他应用里的 Key。</div>
   </div>
 
@@ -454,6 +499,7 @@
     <div id="pv-sheet-result"></div>
     <div class="row" id="pv-sheet-actions">
       <div class="btn btn-ghost" id="pv-btn-translate">翻译</div>
+      <div class="btn btn-ghost" id="pv-btn-ai">问 AI</div>
       <div class="btn btn-primary" id="pv-btn-highlight">高亮</div>
     </div>
     <div class="sheet-close" id="pv-sheet-close">取消</div>
@@ -472,6 +518,39 @@
       <div class="sheet-close" id="pv-note-close">关闭</div>
     </div>
   </div>
+
+  <!-- 悬浮 AI 助手 -->
+  <div class="ai-fab" id="ai-fab">🤖</div>
+  <div class="ai-panel" id="ai-panel">
+    <div class="ai-head">
+      <span class="ai-title">AI 助手</span>
+      <span class="ai-tools">
+        <span class="ai-tool" id="ai-cite">引用选中</span>
+        <span class="ai-tool" id="ai-page">当前页</span>
+        <span class="ai-tool" id="ai-clear">清空</span>
+        <span class="ai-close" id="ai-close">✕</span>
+      </span>
+    </div>
+    <div class="ai-keyhint" id="ai-keyhint" style="display:none">未配置 Key：
+      <span id="ai-go-settings" style="text-decoration:underline;cursor:pointer">去 API 设置</span>
+    </div>
+    <div class="ai-msgs" id="ai-msgs">
+      <div class="ai-empty" id="ai-empty">选中文字后点「问 AI」，或直接输入问题。也可以附一张图（需要视觉模型）。</div>
+    </div>
+    <div class="ai-attach">
+      <span class="ai-chip" id="ai-chip-text" style="display:none"></span>
+      <span class="ai-chipx" id="ai-chip-clear" style="display:none">✕</span>
+      <img class="ai-thumb" id="ai-thumb" style="display:none" alt="">
+      <span class="ai-chipx" id="ai-thumb-clear" style="display:none">✕</span>
+      <div class="ai-img-note" id="ai-img-note" style="display:none">图片提问需要视觉模型（DeepSeek 文本模型不支持图片）。</div>
+    </div>
+    <div class="ai-inputbar">
+      <span class="ai-imgbtn" id="ai-img">🖼</span>
+      <input id="ai-input" placeholder="问点什么…">
+      <span class="ai-send" id="ai-send">发送</span>
+    </div>
+    <input type="file" id="ai-imgpick" accept="image/*" class="file-input">
+  </div>
 </div>
 
 <aside class="aside">
@@ -483,6 +562,7 @@
   <p class="step">✅ PDF 解析 + 参考文献段抽取</p>
   <p class="step">✅ 论文原文预览：划词翻译 / 高亮备注 / 导出 Markdown</p>
   <p class="step">✅ 相似论文：国内平台检索链接 + OpenAlex/Crossref 结果</p>
+  <p class="step">✅ 悬浮 AI 助手：划词提问 / 当前页截图 / 多轮对话</p>
   <p class="step">✅ 摘要/翻译链路（需 .env 里的 DeepSeek Key）</p>
   <h3>启动</h3>
   <p><code>npm install</code> → <code>npm run preview</code> → 打开 <code>127.0.0.1:5178</code></p>
@@ -584,6 +664,15 @@ function clearKey(){
   localStorage.removeItem(KEY_STORE);
   refreshKeyUI();
   toast('已清除本机 Key');
+}
+const MODEL_STORE = 'docai_preview_model';
+function getModel(){ return (localStorage.getItem(MODEL_STORE) || '').trim() || 'deepseek-chat'; }
+function saveModel(){
+  const v = ($('model-input').value || '').trim();
+  localStorage.setItem(MODEL_STORE, v);
+  $('model-input').value = '';
+  $('model-input').placeholder = getModel();
+  toast(v ? '模型名称已保存：' + v : '已恢复默认模型');
 }
 async function testKey(){
   const v = ($('key-input').value || '').trim() || getKey();
@@ -901,6 +990,7 @@ function initPreview(){
   $('pv-zoom-in').onclick = function () { pvViewer.zoomIn(); };
   $('pv-zoom-out').onclick = function () { pvViewer.zoomOut(); };
   $('pv-zoom').onclick = function () { pvViewer.resetZoom(); };
+  $('pv-btn-ai').onclick = doPvAskAI;
   $('pv-export').onclick = exportPv;
   $('pv-sheet-close').onclick = hidePvSheet;
   $('pv-btn-highlight').onclick = doPvHighlight;
@@ -947,6 +1037,13 @@ function doPvHighlight(){
     toast('已高亮 · 点高亮处可加备注');
     if (ann) showPvNote(ann, true);
   } catch (e) { toast(String(e.message || e)); }
+}
+function doPvAskAI(){
+  if (!pvSel) return;
+  const text = pvSel.text;
+  hidePvSheet();
+  const sel = window.getSelection(); if (sel) sel.removeAllRanges();
+  aiOpen(text);
 }
 function showPvNote(ann, fresh){
   pvActive = ann;
@@ -1084,6 +1181,153 @@ $('sim-results').onclick = e => {
   } else if (btn.dataset.act === 'open') simOpen(p.url);
   else if (btn.dataset.act === 'pdf') simOpen(p.pdf);
 };
+
+/* ---------- 悬浮 AI 助手 ---------- */
+let aiHistory = [], aiContext = '', aiImage = '', aiBusy = false;
+
+function aiOpen(ctx){
+  if (typeof ctx === 'string' && ctx.trim()) { aiContext = ctx.trim(); aiRenderChip(); }
+  $('ai-panel').classList.add('on');
+  $('ai-keyhint').style.display = getKey() ? 'none' : 'block';
+  setTimeout(() => $('ai-input').focus(), 120);
+}
+function aiClose(){ $('ai-panel').classList.remove('on'); }
+function aiRenderChip(){
+  const chip = $('ai-chip-text');
+  chip.style.display = aiContext ? 'inline-block' : 'none';
+  chip.textContent = aiContext ? '「' + aiContext.slice(0, 40) + (aiContext.length > 40 ? '…' : '') + '」' : '';
+  $('ai-chip-clear').style.display = aiContext ? 'inline' : 'none';
+  const thumb = $('ai-thumb');
+  thumb.style.display = aiImage ? 'inline-block' : 'none';
+  if (aiImage) thumb.src = aiImage;
+  $('ai-thumb-clear').style.display = aiImage ? 'inline' : 'none';
+  $('ai-img-note').style.display = aiImage ? 'block' : 'none';
+}
+function aiOnPick(e){
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  if (!/^image\//.test(f.type)) { toast('请选择图片文件'); return; }
+  const reader = new FileReader();
+  reader.onload = () => aiShrink(String(reader.result)).then(url => { aiImage = url; aiRenderChip(); });
+  reader.readAsDataURL(f);
+}
+function aiShrink(dataUrl){
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const max = 1400;
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', 0.78));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+function aiCite(){
+  const t = String((window.getSelection() && window.getSelection().toString()) || '')
+    .replace(/\s+/g, ' ').trim();
+  if (!t) { toast('先在页面里选中一段文字'); return; }
+  aiContext = t;
+  aiRenderChip();
+  $('ai-input').focus();
+}
+function aiAttachPage(){
+  const c = document.querySelector('#pv-mount .pdf-canvas');
+  if (!c || !c.width) { toast('先打开一篇 PDF'); return; }
+  const max = 1400;
+  const scale = Math.min(1, max / c.width);
+  const tmp = document.createElement('canvas');
+  tmp.width = Math.round(c.width * scale);
+  tmp.height = Math.round(c.height * scale);
+  tmp.getContext('2d').drawImage(c, 0, 0, tmp.width, tmp.height);
+  aiImage = tmp.toDataURL('image/jpeg', 0.75);
+  aiRenderChip();
+  toast('已附上当前页截图');
+}
+function aiBubble(role, text, img){
+  const wrap = document.createElement('div');
+  wrap.className = 'ai-msg ' + role;
+  if (img) {
+    const im = document.createElement('img');
+    im.className = 'ai-msg-img';
+    im.src = img;
+    wrap.appendChild(im);
+  }
+  if (text) {
+    const p = document.createElement('div');
+    p.className = 'ai-bubble';
+    p.textContent = text;
+    wrap.appendChild(p);
+  }
+  $('ai-msgs').appendChild(wrap);
+  $('ai-msgs').scrollTop = $('ai-msgs').scrollHeight;
+  return wrap;
+}
+async function aiSend(){
+  if (aiBusy) return;
+  const q = ($('ai-input').value || '').trim();
+  if (!q && !aiImage) { toast('输入问题，或添加一张图片'); return; }
+  const ctx = aiContext, img = aiImage;
+  $('ai-input').value = '';
+  aiBubble('user', q, img);
+  $('ai-empty').style.display = 'none';
+  $('ai-send').classList.add('off');
+  aiBusy = true;
+  const typing = aiBubble('assistant', '思考中…');
+  typing.classList.add('typing');
+  try {
+    const r = await fetch('/api/assistant', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: q, context: ctx, image: img, history: aiHistory.slice(-8),
+        model: getModel(), apiKey: getKey()
+      })
+    }).then(x => x.json());
+    if (!r.ok) throw new Error(r.error || '请求失败');
+    typing.remove();
+    aiBubble('assistant', r.data.text || '（没有返回内容）');
+    const userText = (ctx ? '【选中内容】' + ctx + '\n\n' : '') +
+      '【问题】' + (q || '请解释这张图片的内容') + (img ? '\n【附图片】' : '');
+    aiHistory.push({ role: 'user', content: userText });
+    aiHistory.push({ role: 'assistant', content: r.data.text });
+    if (aiHistory.length > 16) aiHistory = aiHistory.slice(-16);
+    aiContext = '';
+    aiImage = '';
+    aiRenderChip();
+  } catch (e) {
+    typing.remove();
+    aiBubble('assistant', '出错了：' + String(e.message || e));
+  } finally {
+    aiBusy = false;
+    $('ai-send').classList.remove('off');
+  }
+}
+function aiClear(){
+  aiHistory = [];
+  $('ai-msgs').innerHTML =
+    '<div class="ai-empty" id="ai-empty">选中文字后点「问 AI」，或直接输入问题。也可以附一张图（需要视觉模型）。</div>';
+  aiContext = '';
+  aiImage = '';
+  aiRenderChip();
+}
+$('ai-fab').onclick = () => aiOpen();
+$('ai-close').onclick = aiClose;
+$('ai-send').onclick = aiSend;
+$('ai-input').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); aiSend(); } };
+$('ai-img').onclick = () => $('ai-imgpick').click();
+$('ai-imgpick').onchange = aiOnPick;
+$('ai-clear').onclick = aiClear;
+$('ai-cite').onclick = aiCite;
+$('ai-page').onclick = aiAttachPage;
+$('ai-chip-clear').onclick = () => { aiContext = ''; aiRenderChip(); };
+$('ai-thumb-clear').onclick = () => { aiImage = ''; aiRenderChip(); };
+$('ai-go-settings').onclick = () => { aiClose(); go('settings'); };
+$('model-input').placeholder = getModel();
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 </script>
