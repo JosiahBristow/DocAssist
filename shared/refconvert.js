@@ -10,7 +10,7 @@
  *   ② 把外文体例解析成字段（作者、题名、出处、年、卷期页、arXiv 号）
  *   ③ 按 GB/T 7714-2015 重新生成条目（外文作者改写为「姓 名缩写」，>3 人加 et al.）
  *
- * 纯规则、零依赖，可在小程序端 / 云函数 / Node 中直接运行。
+ * 纯规则、零依赖，可在浏览器 / Node 中直接运行。
  */
 
 const PARTICLES = new Set(['van', 'von', 'de', 'der', 'den', 'di', 'da', 'dos', 'du', 'del', 'la', 'le', 'ten', 'ter', 'zu', 'bin', 'al']);

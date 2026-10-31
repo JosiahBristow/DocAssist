@@ -1,17 +1,12 @@
 {
   "name": "docassist",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "private": true,
-  "description": "文献助手 · 校园文献阅读与写作辅助（微信小程序 + 云开发）",
+  "description": "文献助手 Android 端：论文阅读、标注、参考文献格式校对与学术翻译",
   "scripts": {
-    "sync": "node scripts/sync.js",
-    "preview": "node local-preview/server.js",
-    "test": "node test/test-gb7714.js && node test/test-annotations.js && node test/test-search-links.js && node test/test-assistant.js && node test/test-library.js && node test/test-color.js"
-  },
-  "dependencies": {
-    "pdf-parse": "^1.1.1"
+    "test": "node test/test-gb7714.js && node test/test-annotations.js && node test/test-search-links.js && node test/test-assistant.js && node test/test-library.js && node test/test-color.js && node test/test-pdf-export.js"
   },
   "devDependencies": {
-    "pdfjs-dist": "3.11.174"
+    "pdf-lib": "^1.17.1"
   }
 }

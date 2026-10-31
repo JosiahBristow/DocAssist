@@ -1,6 +1,6 @@
 /**
  * 浏览器端模型调用（Android 壳内）
- * 与云函数共用同一套提示词（shared/llm-common.js）：速读、翻译、Key 校验。
+ * 速读、翻译、Key 校验共用同一套提示词（shared/llm-common.js）。
  * 传输层：优先 fetch；WebView 里若被 CORS 拦下，自动退回 CapacitorHttp（原生请求，不受 CORS 限制）。
  */
 import * as common from '../../shared/llm-common.js';

@@ -4,7 +4,9 @@
  * 翻页、划词操作条（翻译 / 高亮）、备注弹窗、Markdown 导出。
  */
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.min.js';
+import * as pdfLib from 'pdf-lib';
 import { createViewer } from '../../shared/preview-core.js';
+import { exportAnnotatedPdf } from '../../shared/pdf-export.js';
 import { translateSelection } from './llm.js';
 import { tr, trf } from './i18n.js';
 import * as PenColor from '../../shared/color.js';
@@ -48,7 +50,7 @@ export function createPreview(opts) {
       onZoomChange: ({ zoom }) => { $('pv-zoom').textContent = Math.round(zoom * 100) + '%'; },
       onSelection: sel => {
         pendingSel = sel;
-        showSheet(sel);
+        showQuick(sel);
       },
       onHighlightClick: ann => showNote(ann)
     });
@@ -57,7 +59,14 @@ export function createPreview(opts) {
     $('pv-next').addEventListener('click', () => viewer.next());
     $('pv-page').addEventListener('change', e => viewer.goto(e.target.value));
     $('pv-change').addEventListener('click', () => $('pdfpick').click());
-    $('pv-pen').addEventListener('click', toggleInk);
+    $('quick-translate').addEventListener('click', () => {
+      if (!pendingSel) return;
+      hideQuick();
+      showSheet(pendingSel);
+      doTranslate();
+    });
+    $('quick-ask').addEventListener('click', () => { hideQuick(); doAskAI(); });
+    $('quick-highlight').addEventListener('click', () => { hideQuick(); doHighlight(); });
     $('ink-undo').addEventListener('click', () => { if (!viewer.undoInk()) toast('没有可撤销的笔迹'); });
     $('ink-erase').addEventListener('click', () => setInkTool(inkTool === 'erase' ? 'pen' : 'erase'));
     $('ink-done').addEventListener('click', exitInk);
@@ -65,14 +74,16 @@ export function createPreview(opts) {
     $('ink-apply').addEventListener('click', applyCustomColor);
     $('ink-fix').addEventListener('click', autoDarken);
     ['ink-h', 'ink-s', 'ink-v'].forEach(id => $(id).addEventListener('input', updateCustomPreview));
-    $('pv-pen').title = tr('批注');
     restoreInkPrefs();
     renderInkPalette();
     renderInkWidths();
     $('pv-zoom-in').addEventListener('click', () => viewer.zoomIn());
     $('pv-zoom-out').addEventListener('click', () => viewer.zoomOut());
     $('pv-zoom').addEventListener('click', () => viewer.resetZoom());
-    $('pv-export').addEventListener('click', exportMd);
+    $('pv-export').addEventListener('click', openExportMenu);
+    $('export-pdf').addEventListener('click', exportPdf);
+    $('export-md').addEventListener('click', () => { $('export-modal').classList.remove('on'); exportMd(); });
+    $('export-close').addEventListener('click', () => $('export-modal').classList.remove('on'));
     $('pv-sheet-close').addEventListener('click', hideSheet);
     $('pv-btn-highlight').addEventListener('click', doHighlight);
     $('pv-btn-translate').addEventListener('click', doTranslate);
@@ -87,6 +98,11 @@ export function createPreview(opts) {
         if (!$('screen-read').hidden && viewer.getInfo().hasDoc) viewer.resize();
       }, 250);
     });
+    const scroller = $('pv-mount').closest('main');
+    if (scroller) scroller.addEventListener('scroll', hideQuick, { passive: true });
+    document.addEventListener('pointerdown', e => {
+      if (!$('pv-quick').contains(e.target)) hideQuick();
+    }, { passive: true });
   }
 
   async function openBytes(bytes, name) {
@@ -123,14 +139,34 @@ export function createPreview(opts) {
     $('pv-count').textContent = tr('暂无标注');
   }
 
+  /* ---------------- 划词小工具条 ---------------- */
+  function showQuick(sel) {
+    const bar = $('pv-quick');
+    bar.hidden = false;
+    const b = sel.bounds;
+    const vw = document.documentElement.clientWidth;
+    let left = b ? (b.left + b.right) / 2 : vw / 2;
+    let top = b ? b.top - 26 : 80;
+    left = Math.max(78, Math.min(vw - 78, left));
+    top = Math.max(66, top);
+    bar.style.left = left + 'px';
+    bar.style.top = top + 'px';
+  }
+  function hideQuick() {
+    const bar = $('pv-quick');
+    if (bar) bar.hidden = true;
+  }
+
   /* ---------------- 划词操作条 ---------------- */
   function showSheet(sel) {
+    hideQuick();
     $('pv-sheet-text').textContent = sel.text;
     $('pv-sheet-result').innerHTML = '';
     $('pv-sheet-actions').hidden = false;
     $('pv-sheet').classList.add('on');
   }
   function hideSheet() {
+    hideQuick();
     $('pv-sheet').classList.remove('on');
     pendingSel = null;
   }
@@ -159,6 +195,7 @@ export function createPreview(opts) {
     if (!pendingSel) return;
     try {
       const ann = viewer.addHighlight(pendingSel, '');
+      hideQuick();
       hideSheet();
       const sel = window.getSelection();
       if (sel) sel.removeAllRanges();
@@ -172,6 +209,7 @@ export function createPreview(opts) {
   function doAskAI() {
     if (!pendingSel) return;
     const text = pendingSel.text;
+    hideQuick();
     hideSheet();
     const sel = window.getSelection();
     if (sel) sel.removeAllRanges();
@@ -220,6 +258,58 @@ export function createPreview(opts) {
     if (!viewer.getInfo().hasDoc) return;
     if (!viewer.getInfo().count) { toast('还没有标注，先选中文字点「高亮」'); return; }
     copy(viewer.exportMarkdown(), '标注已复制为 Markdown');
+  }
+
+  function openExportMenu() {
+    if (!viewer.getInfo().hasDoc) return;
+    if (!viewer.getInfo().count) { toast('还没有标注'); return; }
+    $('export-modal').classList.add('on');
+  }
+
+  async function exportPdf() {
+    $('export-modal').classList.remove('on');
+    if (!viewer.getInfo().hasDoc) return;
+    if (!viewer.getInfo().count) { toast('还没有标注'); return; }
+    toast('正在生成 PDF…');
+    try {
+      const buf = opts.getPdfBytes ? await opts.getPdfBytes() : null;
+      if (!buf) throw new Error('找不到原文件');
+      const out = await exportAnnotatedPdf(pdfLib, new Uint8Array(buf), viewer.getAnnotations());
+      await savePdf(out, $('pv-name').textContent || 'paper.pdf');
+    } catch (e) {
+      toast('导出失败：' + String(e.message || e));
+    }
+  }
+
+  function bytesToBase64(bytes) {
+    let bin = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(bin);
+  }
+
+  function savePdf(bytes, name) {
+    const plugins = window.Capacitor && window.Capacitor.Plugins;
+    const fs = plugins && plugins.Filesystem;
+    const share = plugins && plugins.Share;
+    const safeName = String(name || 'paper.pdf').replace(/\.pdf$/i, '') + '-标注版.pdf';
+    if (fs && share) {
+      return fs.writeFile({ path: safeName, data: bytesToBase64(bytes), directory: 'CACHE', recursive: true })
+        .then(res => share.share({ title: safeName, files: [res.uri], dialogTitle: '保存或分享标注版 PDF' }))
+        .then(() => toast('已打开分享'))
+        .catch(e => toast('保存失败：' + String(e.message || e)));
+    }
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = safeName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast('标注版 PDF 已下载');
   }
 
   /* ---------------- 画笔批注 ---------------- */
@@ -290,7 +380,7 @@ export function createPreview(opts) {
   }
 
   function toggleInk() {
-    if (!viewer.getInfo().hasDoc) return;
+    if (!viewer.getInfo().hasDoc) { toast('请先打开一篇论文'); return; }
     if (inkOn) { exitInk(); return; }
     inkOn = true;
     viewer.setInkColor(inkColor);
@@ -298,7 +388,8 @@ export function createPreview(opts) {
     viewer.setInkMode(true);
     setInkTool('pen');
     document.body.classList.add('inking');
-    $('pv-pen').classList.add('on');
+    const penBtn = $('pv-pen');
+    if (penBtn) penBtn.classList.add('on');
     $('ink-bar').hidden = false;
     renderInkPalette();
     renderInkWidths();
@@ -309,7 +400,8 @@ export function createPreview(opts) {
     inkOn = false;
     if (viewer) viewer.setInkMode(false);
     document.body.classList.remove('inking');
-    $('pv-pen').classList.remove('on');
+    const penBtn = $('pv-pen');
+    if (penBtn) penBtn.classList.remove('on');
     $('ink-bar').hidden = true;
     $('ink-modal').classList.remove('on');
   }
@@ -367,5 +459,8 @@ export function createPreview(opts) {
   }
 
   init();
-  return { openFile, openBytes, reset, hideSheet, pageImage, exitInk };
+  return {
+    openFile, openBytes, reset, hideSheet, pageImage, exitInk,
+    toggleInk, hasDoc: () => viewer.getInfo().hasDoc
+  };
 }

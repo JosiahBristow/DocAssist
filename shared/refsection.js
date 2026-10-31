@@ -1,6 +1,6 @@
 /**
  * refsection.js —— PDF 文本清洗与参考文献段落抽取（纯字符串操作，无 Node API）
- * Node 端（docai-core.js）与浏览器端（Android 壳）共用同一份实现。
+ * Node 端测试与浏览器端（Android 壳）共用同一份实现。
  */
 
 /** 清洗 PDF 文本：去页码行、断词连字符、多余空白 */

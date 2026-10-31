@@ -197,6 +197,8 @@ textarea::placeholder,input::placeholder{color:var(--ink3)}
 .pdf-canvas{display:block}
 .pdf-text-layer{position:absolute;inset:0;overflow:hidden;line-height:1;user-select:text;-webkit-user-select:text}
 .pdf-text-layer span{position:absolute;color:transparent;white-space:pre;transform-origin:0 0;cursor:text}
+.pdf-text-layer span::selection{background:rgba(43,108,246,.28);color:transparent}
+.pdf-text-layer span::-moz-selection{background:rgba(43,108,246,.28);color:transparent}
 .pdf-hl-layer{position:absolute;inset:0;pointer-events:none}
 .pdf-hl{position:absolute;background:rgba(240,214,120,.5);border-radius:1px}
 .pdf-hl.has-note{background:rgba(192,72,44,.22);border-bottom:1.5px solid var(--accent)}
@@ -268,6 +270,12 @@ body.inking #screen-read{padding-bottom:160px}
 .recent-del{font-size:10.5px;color:var(--ink3);padding:4px 6px;flex:0 0 auto}
 
 /* ---------- 底部操作条 / 弹窗 ---------- */
+.pv-quick{position:fixed;z-index:65;display:flex;align-items:center;gap:2px;background:var(--card);
+  border:1px solid var(--line);border-radius:10px;padding:3px;box-shadow:0 6px 18px rgba(30,27,22,.16);
+  transform:translate(-50%,-100%);white-space:nowrap}
+.pv-quick span{font-size:12px;color:var(--ink2);padding:6px 9px;border-radius:7px;cursor:pointer}
+.pv-quick span:active{background:var(--paper)}
+.pv-quick span.q-primary{color:var(--accent-deep);font-weight:600}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--card);
   border-top:2px solid var(--ink);
   padding:14px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -6px 24px rgba(30,27,22,.1);
@@ -485,7 +493,6 @@ body.inking #screen-read{padding-bottom:160px}
         <input class="pv-page" id="pv-page" type="number" min="1" value="1">
         <span class="pv-total" id="pv-total">/ 1</span>
         <span class="pv-btn" id="pv-next">›</span>
-        <span class="pv-btn pv-pen" id="pv-pen" title="批注">笔</span>
         <span class="pv-count" id="pv-count">暂无标注</span>
       </div>
 
@@ -594,6 +601,13 @@ body.inking #screen-read{padding-bottom:160px}
     </div>
   </section>
 
+  <!-- 划词小工具条 -->
+  <div class="pv-quick" id="pv-quick" hidden>
+    <span id="quick-translate">翻译</span>
+    <span id="quick-ask">问 AI</span>
+    <span class="q-primary" id="quick-highlight">高亮</span>
+  </div>
+
   <!-- 划词操作条 -->
   <div class="sheet" id="pv-sheet">
     <div class="sheet-grip"></div>
@@ -614,7 +628,7 @@ body.inking #screen-read{padding-bottom:160px}
       <div class="modal-quote" id="pv-note-quote"></div>
       <textarea id="pv-note-text" placeholder="写一句你的想法，比如：这个方法可以借鉴…"></textarea>
       <div class="row" style="margin-top:10px">
-        <div class="btn btn-ghost" id="pv-note-del">删除</div>
+        <div class="btn btn-ghost" id="pv-note-del">删除高亮</div>
         <div class="btn btn-primary" id="pv-note-save">保存备注</div>
       </div>
       <div class="sheet-close" id="pv-note-close">关闭</div>
@@ -667,10 +681,24 @@ body.inking #screen-read{padding-bottom:160px}
     </div>
   </div>
 
+  <!-- 导出菜单 -->
+  <div class="modal" id="export-modal">
+    <div class="modal-card">
+      <div class="card-title">导出</div>
+      <div class="muted">把当前标注（高亮 + 画笔）写入原 PDF，生成标注版文件。</div>
+      <div style="height:10px"></div>
+      <div class="btn btn-primary" id="export-pdf">导出标注版 PDF</div>
+      <div style="height:8px"></div>
+      <div class="btn btn-ghost" id="export-md">导出 Markdown 笔记</div>
+      <div class="sheet-close" id="export-close">取消</div>
+    </div>
+  </div>
+
   <!-- 悬浮侧栏 -->
   <div class="rail" id="rail">
     <div class="rail-items">
       <div class="rail-btn" id="rail-ai"><b>问</b><span>AI 助手</span></div>
+      <div class="rail-btn" id="rail-pen"><b>笔</b><span>批注</span></div>
       <div class="rail-btn" id="rail-translate"><b>译</b><span>全文翻译</span></div>
       <div class="rail-btn" id="rail-theme"><b id="rail-theme-ic">夜</b><span>主题</span></div>
       <div class="rail-btn" id="rail-lang"><b id="rail-lang-ic">EN</b><span>语言</span></div>

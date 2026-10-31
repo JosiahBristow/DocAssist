@@ -1,6 +1,6 @@
 /**
  * llm-common.js —— 提示词、分块、结果归一化（纯 JS，无 Node API）
- * 同时被 Node 端（云函数 docai-core.js）与浏览器端（Android 壳 llm.js）引用，
+ * 同时被 Node 端测试与浏览器端（Android 壳 llm.js）引用，
  * 保证两端使用完全相同的提示词与字段约定，避免行为漂移。
  */
 

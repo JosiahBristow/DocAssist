@@ -209,6 +209,7 @@
       if (!box.width || !box.height) return null;
 
       var rects = [];
+      var bounds = null;
       for (var i = 0; i < sel.rangeCount; i++) {
         var range = sel.getRangeAt(i);
         if (!state.pageEl.contains(range.commonAncestorContainer)) continue;
@@ -216,6 +217,14 @@
         for (var j = 0; j < rs.length; j++) {
           var r = rs[j];
           if (r.width < 2 || r.height < 2) continue;
+          if (!bounds) {
+            bounds = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+          } else {
+            bounds.left = Math.min(bounds.left, r.left);
+            bounds.top = Math.min(bounds.top, r.top);
+            bounds.right = Math.max(bounds.right, r.right);
+            bounds.bottom = Math.max(bounds.bottom, r.bottom);
+          }
           var x = clamp01((r.left - box.left) / box.width);
           var y = clamp01((r.top - box.top) / box.height);
           var w = Math.min(r.width / box.width, 1 - x);
@@ -230,7 +239,7 @@
         }
       }
       if (!rects.length) return null;
-      return { text: text.slice(0, 2000), rects: rects, page: state.page };
+      return { text: text.slice(0, 2000), rects: rects, page: state.page, bounds: bounds };
     }
 
     function onSelectionChange() {
@@ -336,15 +345,13 @@
     /* ---- 点击高亮（命中检测；高亮层 pointer-events:none，不影响划词） ---- */
     function onPageClick(e) {
       if (state.inkMode) return;
-      var sel = window.getSelection();
-      if (sel && !sel.isCollapsed) return;
       var box = state.pageEl.getBoundingClientRect();
       if (!box.width || !box.height) return;
       var x = (e.clientX - box.left) / box.width;
       var y = (e.clientY - box.top) / box.height;
       for (var i = state.annotations.length - 1; i >= 0; i--) {
         var a = state.annotations[i];
-        if (a.page !== state.page) continue;
+        if (a.type === 'ink' || a.page !== state.page) continue;
         for (var k = 0; k < (a.rects || []).length; k++) {
           var r = a.rects[k];
           if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
@@ -594,6 +601,9 @@
     function getInk() {
       return { mode: state.inkMode, tool: state.inkTool, color: state.inkColor, width: state.inkWidth };
     }
+    function getAnnotations() {
+      return state.annotations.slice();
+    }
 
     /* ---- 渲染当前页 ---- */
     async function renderPage() {
@@ -656,6 +666,7 @@
       if (token !== state.renderToken || state.destroyed) { page.cleanup(); return; }
 
       var content = await page.getTextContent();
+      var styles = content.styles || {};
       var pending = [];
       for (var i = 0; i < content.items.length; i++) {
         var it = content.items[i];
@@ -663,11 +674,18 @@
         var tx = pdfjsLib.Util.transform(vp.transform, it.transform);
         var fontHeight = Math.hypot(tx[2], tx[3]);
         if (!fontHeight) continue;
+        var style = styles[it.fontName] || {};
+        // 与 pdf.js 官方文本层一致：用字体 ascent 定位基线，避免选中框整体上移
+        var fontAscent = fontHeight;
+        if (style.ascent) fontAscent = style.ascent * fontHeight;
+        else if (style.descent) fontAscent = (1 + style.descent) * fontHeight;
         var span = document.createElement('span');
         span.textContent = it.str;
         span.style.left = tx[4] + 'px';
-        span.style.top = (tx[5] - fontHeight) + 'px';
+        span.style.top = (tx[5] - fontAscent) + 'px';
         span.style.fontSize = fontHeight + 'px';
+        span.style.lineHeight = '1';
+        span.style.fontFamily = style.fontFamily || 'sans-serif';
         textLayer.appendChild(span);
         pending.push({ span: span, width: it.width ? it.width * vp.scale : 0 });
       }
@@ -830,6 +848,7 @@
       setInkWidth: setInkWidth,
       undoInk: undoInk,
       getInk: getInk,
+      getAnnotations: getAnnotations,
       getInfo: getInfo,
       getSelection: captureSelection
     };

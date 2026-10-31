@@ -584,6 +584,13 @@ function initRail() {
     $('rail').classList.toggle('open');
   });
   $('rail-ai').addEventListener('click', () => { railClose(); assistant.open(); });
+  $('rail-pen').addEventListener('click', () => {
+    railClose();
+    if (!preview.hasDoc()) { toast('请先打开一篇论文'); return; }
+    go('read');
+    readTab('orig');
+    preview.toggleInk();
+  });
   $('rail-theme').addEventListener('click', toggleTheme);
   $('rail-lang').addEventListener('click', toggleLang);
   $('rail-translate').addEventListener('click', () => { railClose(); openTransDialog(); });
@@ -683,7 +690,8 @@ preview = createPreview({
     const fp = fingerprintFromBytes(name, bytes);
     return library.save({ fp: fp, name: name, size: size, bytes: bytes, openedAt: Date.now() })
       .then(refreshRecent);
-  }
+  },
+  getPdfBytes: () => lastPdfFile ? lastPdfFile.arrayBuffer() : Promise.reject(new Error('请先打开一篇论文'))
 });
 assistant = createAssistant({ toast, esc, go, getPageImage: () => preview.pageImage() });
 const similar = createSimilarSearch({ toast, esc, copy });

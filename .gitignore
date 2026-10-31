@@ -4,7 +4,6 @@ node_modules/
 # --- 密钥与环境配置（绝不提交） ---
 .env
 .env.*
-!.env.example
 *.keystore
 *.jks
 key.properties
@@ -26,12 +25,3 @@ app-android/www/assets/
 app-android/release/
 *.apk
 *.aab
-
-# 小程序端 miniprogram/utils/ 下的规则引擎副本由 scripts/sync.js 生成，
-# 但开发者工具直接引用，需要提交，故不忽略
-
-# --- 文档自检产物（render_check.py 生成） ---
-docs/render/
-
-# --- 比赛提交包（由 scripts/package_submission.sh 随时重新生成） ---
-*.zip

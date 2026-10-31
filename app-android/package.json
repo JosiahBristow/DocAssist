@@ -1,8 +1,8 @@
 {
   "name": "docassist-android",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "private": true,
-  "description": "文献助手 Android 端（Capacitor 壳 + 复用小程序同一套规则引擎）",
+  "description": "文献助手 Android 端（Capacitor 壳，复用 shared/ 规则与预览内核）",
   "scripts": {
     "build": "node build.js"
   },
@@ -10,6 +10,9 @@
     "@capacitor/android": "^6.2.0",
     "@capacitor/browser": "^6.0.6",
     "@capacitor/core": "^6.2.0",
+    "@capacitor/filesystem": "^6.0.4",
+    "@capacitor/share": "^6.0.4",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "3.11.174"
   },
   "devDependencies": {
