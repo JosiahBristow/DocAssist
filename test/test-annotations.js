@@ -63,5 +63,21 @@ ok('删除一处后计数为 1', store.count(fp1) === 1);
 store.clear(fp1);
 ok('清空后计数为 0', store.count(fp1) === 0);
 
+console.log('=== 墨迹批注 ===');
+const ink = store.addInk('ink-file', {
+  page: 1,
+  points: [[0.1, 0.1], [0.2, 0.2], [0.3, 0.25]],
+  color: '#B03A2E',
+  width: 0.006,
+  name: 'paper.pdf'
+});
+ok('类型为 ink', ink.type === 'ink');
+ok('保存了笔迹点', ink.points.length === 3);
+ok('保存了颜色与粗细', ink.color === '#B03A2E' && ink.width === 0.006);
+ok('墨迹计数为 1', store.count('ink-file') === 1);
+const inkMd = pc.toMarkdown({ name: 'paper.pdf', items: [ink] });
+ok('Markdown 包含墨迹', inkMd.includes('墨迹：#B03A2E'));
+store.clear('ink-file');
+
 console.log('\n' + (fail ? '❌ ' + fail + ' 项失败 / ' + (pass + fail) : '✅ 全部通过 (' + pass + ')'));
 process.exit(fail ? 1 : 0);

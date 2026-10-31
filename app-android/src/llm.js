@@ -151,6 +151,41 @@ export async function askAssistant(opts) {
 }
 
 /**
+ * 全文翻译：先抽一次术语表，再分段翻译（每段约 1800 字）。
+ * 长论文最多翻译 30 段，超出部分标记 truncated。
+ */
+export async function translateDocument(text, opts) {
+  const o = opts || {};
+  const src = String(text || '').replace(/\r/g, '').trim();
+  if (src.replace(/\s/g, '').length < 100) throw new Error('可读文本过少');
+
+  const terms = (await chatJSON([
+    { role: 'system', content: common.TERM_SYSTEM },
+    { role: 'user', content: common.termPrompt(src) }
+  ], { maxTokens: 900, temperature: 0 })).terms || [];
+  const termLine = terms.filter(t => t.en && t.zh).map(t => t.en + '=' + t.zh).join('; ');
+
+  const all = common.chunkText(src, 1800, 0);
+  const chunks = all.slice(0, 30);
+  const segments = [];
+  for (let i = 0; i < chunks.length; i++) {
+    if (o.onProgress) {
+      try { o.onProgress(i, chunks.length); } catch (e) {}
+    }
+    const dst = await chat([
+      { role: 'system', content: common.TRANSLATE_SYSTEM },
+      { role: 'user', content: common.translatePrompt(termLine, chunks[i]) }
+    ], { maxTokens: 2600, temperature: 0.1 });
+    segments.push({ src: chunks[i], dst: dst });
+  }
+  return {
+    terms: terms.filter(t => t.en && t.zh).slice(0, 20),
+    segments: segments,
+    truncated: all.length > chunks.length
+  };
+}
+
+/**
  * 检索相似论文：OpenAlex 优先（免费、CORS 开放），额度用尽/限流时回退 Crossref。
  * 不访问知网/万方等平台，只返回公开元数据；平台检索由前端生成链接。
  */

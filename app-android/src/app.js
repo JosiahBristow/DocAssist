@@ -6,12 +6,13 @@
 import * as gb from '../../shared/gb7714.js';
 import { extractReferenceSection } from '../../shared/refsection.js';
 import { pdfToText } from './pdftext.js';
-import { summarize, translate, verifyKey, store } from './llm.js';
+import { summarize, translate, translateDocument, verifyKey, store } from './llm.js';
 import { createPreview } from './preview.js';
 import { createSimilarSearch } from './search.js';
 import { createAssistant } from './assistant.js';
 import { fingerprintFromBytes, createStore } from '../../shared/preview-core.js';
 import * as library from '../../shared/library.js';
+import { tr, trf, applyLanguage, setLang, getLang, relTime } from './i18n.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -25,7 +26,7 @@ function toast(msg) {
     _toast.className = 'toast';
     document.body.appendChild(_toast);
   }
-  _toast.textContent = String(msg || '');
+  _toast.textContent = tr(String(msg || ''));
   _toast.classList.add('on');
   clearTimeout(_toast._t);
   _toast._t = setTimeout(() => _toast.classList.remove('on'), 2400);
@@ -47,7 +48,7 @@ function go(name, push = true) {
     const el = $('screen-' + n);
     if (el) el.hidden = n !== name;
   });
-  $('navtitle').textContent = TITLES[name];
+  $('navtitle').textContent = tr(TITLES[name]);
   $('back').hidden = name === 'home';
   document.querySelector('.screen:not([hidden])').scrollTop = 0;
 }
@@ -81,10 +82,10 @@ function maskKey(k) { return k ? k.slice(0, 6) + '••••••' + k.slice(
 function renderKey() {
   const k = store.key;
   $('keybar').hidden = !!k;
-  $('keystate').textContent = k ? '已配置：' + maskKey(k) : '尚未配置，速读与翻译暂不可用';
+  $('keystate').textContent = k ? tr('已配置：') + maskKey(k) : tr('尚未配置，速读与翻译暂不可用');
   $('state-dot').style.color = k ? '#12B76A' : '#B7BFD2';
-  $('state-text').textContent = k ? '已配置：' + maskKey(k) : '尚未配置';
-  $('read-needkey').textContent = k ? '' : '当前未配置 Key：原文、高亮、格式校对可用；速读与划词翻译需要 Key';
+  $('state-text').textContent = k ? tr('已配置：') + maskKey(k) : tr('尚未配置');
+  $('read-needkey').textContent = k ? '' : tr('当前未配置 Key：原文、高亮、格式校对可用；速读与划词翻译需要 Key');
 }
 
 /* ================= 格式校对 ================= */
@@ -207,19 +208,26 @@ let lastPdfName = '';
 let lastPdfFile = null;
 let readToken = 0;
 let summaryDone = false;
+let lastPdfText = '';
+let lastSummary = null;
+let lastPdfStats = null;
+let transCache = null;
+let pendingTransText = '';
 const annoStore = createStore(localStorage);
+let lastBanner = null;
 
 function setBanner(kind, text, actionText, action) {
   const bar = $('read-banner');
   if (!bar) return;
-  if (!text) { bar.hidden = true; return; }
+  if (!text) { bar.hidden = true; lastBanner = null; return; }
+  lastBanner = { kind: kind, text: text, actionText: actionText, action: action };
   bar.hidden = false;
   bar.className = 'read-banner' + (kind ? ' ' + kind : '');
-  $('read-banner-text').textContent = text;
+  $('read-banner-text').textContent = tr(text);
   const a = $('read-banner-action');
   if (actionText) {
     a.hidden = false;
-    a.textContent = actionText;
+    a.textContent = tr(actionText);
     a.onclick = action;
   } else {
     a.hidden = true;
@@ -266,6 +274,10 @@ async function openPaper(file) {
 
   showReadMain();
   resetSummary();
+  resetTrans();
+  lastPdfText = '';
+  lastSummary = null;
+  lastPdfStats = null;
   setBanner('', '正在打开 PDF…');
 
   try {
@@ -294,6 +306,7 @@ async function runSummary(file, token) {
     const buf = await file.arrayBuffer();
     const pdf = await pdfToText(buf);
     if (token !== readToken) return;
+    lastPdfText = pdf.text;
     if (pdf.scanned) {
       setBanner('warn', '这是扫描版 PDF：原文可翻页查看，但速读需要文字层（暂无 OCR）');
       return;
@@ -317,7 +330,9 @@ async function runSummary(file, token) {
 
 function renderSummary(s, pdf) {
   summaryDone = true;
-  $('r-filemeta').textContent = `${lastPdfName} · ${pdf.pages} 页 · ${pdf.chars} 字`;
+  lastSummary = s;
+  lastPdfStats = pdf;
+  $('r-filemeta').textContent = trf('{name} · {pages} 页 · {chars} 字', { name: lastPdfName, pages: pdf.pages, chars: pdf.chars });
   $('r-title').textContent = s.title;
   $('r-oneline').textContent = s.one_line;
   $('r-tags').innerHTML = s.keywords.map(k => `<span class="tag">${esc(k)}</span>`).join('');
@@ -329,11 +344,11 @@ function renderSummary(s, pdf) {
   $('r-contrib').innerHTML = li(s.contributions);
   $('r-limits').innerHTML = li(s.limitations);
   $('r-usable').innerHTML = li(s.usable);
-  $('r-terms-label').textContent = `术语对照（${s.terms.length} 条）`;
+  $('r-terms-label').textContent = trf('术语对照（{n} 条）', { n: s.terms.length });
   $('r-terms').innerHTML = s.terms.length ? s.terms.map(t =>
     `<div class="term"><div class="term-en">${esc(t.en)}</div><div class="term-zh">${esc(t.zh)}</div><div class="term-note">${esc(t.note)}</div></div>`).join('')
-    : '<div class="muted">这篇论文没有可提取的专业术语。</div>';
-  $('btn-refs').textContent = `检查这篇论文的参考文献（${lastRefs.length} 条）`;
+    : '<div class="muted">' + tr('这篇论文没有可提取的专业术语。') + '</div>';
+  $('btn-refs').textContent = trf('检查这篇论文的参考文献（{n} 条）', { n: lastRefs.length });
   $('read-meta').hidden = false;
   $('summary-quick').hidden = false;
   $('summary-full').hidden = false;
@@ -345,10 +360,10 @@ function renderSummary(s, pdf) {
 
 function readTab(t) {
   document.querySelectorAll('#screen-read .tab').forEach(el => el.classList.toggle('on', el.dataset.tab === t));
-  ['orig', 'quick', 'full', 'terms', 'similar'].forEach(n => { $('tab-' + n).hidden = n !== t; });
+  ['orig', 'quick', 'full', 'terms', 'similar', 'trans'].forEach(n => { $('tab-' + n).hidden = n !== t; });
   $('pv-nav').hidden = t !== 'orig';
   if (t === 'similar') similar.onTabOpen();
-  if (t !== 'orig') preview.hideSheet();
+  if (t !== 'orig') { preview.hideSheet(); preview.exitInk(); }
 }
 function goCiteFromPdf() {
   if (!lastRefs.length) { toast('这篇 PDF 没找到参考文献段'); return; }
@@ -380,12 +395,12 @@ async function refreshRecent() {
   const row = (m, withDel) => {
     const n = annoStore.count(m.fp);
     return `<div class="recent-row" data-fp="${esc(m.fp)}">
-      <div class="recent-ic">📄</div>
+      <div class="recent-ic">文</div>
       <div class="recent-body">
         <div class="recent-name">${esc(m.name)}</div>
-        <div class="recent-meta">${esc(library.relativeTime(m.openedAt))}${n ? ' · ' + n + ' 处标注' : ''}</div>
+        <div class="recent-meta">${esc(relTime(m.openedAt))}${n ? ' · ' + n + ' ' + tr('处标注') : ''}</div>
       </div>
-      ${withDel ? '<span class="recent-del" data-del="1">删除</span>' : ''}
+      ${withDel ? '<span class="recent-del" data-del="1">' + tr('删除') + '</span>' : ''}
       <div class="entry-arrow">›</div>
     </div>`;
   };
@@ -434,24 +449,167 @@ async function deleteRecent(fp) {
   refreshRecent();
 }
 
+/* ---------------- 全文翻译 ---------------- */
+function resetTrans() {
+  transCache = null;
+  pendingTransText = '';
+  if (!$('trans-empty')) return;
+  $('trans-empty').hidden = false;
+  $('trans-running').hidden = true;
+  $('trans-body').hidden = true;
+  $('trans-actions').hidden = true;
+  $('trans-note').hidden = true;
+  $('trans-body').innerHTML = '';
+  $('trans-bar').style.width = '0%';
+  $('trans-status').textContent = '';
+}
+
+async function ensurePdfText() {
+  if (lastPdfText) return lastPdfText;
+  if (!lastPdfFile) throw new Error('no-paper');
+  const pdf = await pdfToText(await lastPdfFile.arrayBuffer());
+  if (pdf.scanned) throw new Error('scanned');
+  lastPdfText = pdf.text;
+  return lastPdfText;
+}
+
+async function openTransDialog() {
+  if (!store.key) {
+    toast('全文翻译需要 API Key');
+    go('settings');
+    return;
+  }
+  if (!lastPdfFile) { toast('请先打开一篇论文'); return; }
+  try {
+    const text = await ensurePdfText();
+    if (text.replace(/\s/g, '').length < 100) { toast('可读文本过少'); return; }
+    pendingTransText = text;
+    const chars = text.replace(/\s/g, '').length;
+    const segments = Math.min(30, Math.ceil(text.length / 1800));
+    $('trans-dialog-text').textContent =
+      trf('将翻译全文（约 {chars} 字，分 {n} 段）。', { chars: chars, n: segments }) +
+      ' ' + tr('使用你的 Key 调用模型。');
+    $('trans-modal').classList.add('on');
+  } catch (e) {
+    toast(e.message === 'scanned' ? '扫描版 PDF 没有文字层，无法翻译' : '请先打开一篇论文');
+  }
+}
+
+async function startTrans() {
+  $('trans-modal').classList.remove('on');
+  const text = pendingTransText;
+  if (!text) return;
+  go('read');
+  readTab('trans');
+  $('trans-empty').hidden = true;
+  $('trans-running').hidden = false;
+  $('trans-actions').hidden = true;
+  $('trans-body').hidden = true;
+  $('trans-note').hidden = true;
+  $('trans-status').textContent = tr('翻译中') + '…';
+  $('trans-bar').style.width = '0%';
+  try {
+    const out = await translateDocument(text, {
+      onProgress: (i, n) => {
+        $('trans-status').textContent = trf('翻译中 {i}/{n}…', { i: i + 1, n: n });
+        $('trans-bar').style.width = Math.round((i / n) * 100) + '%';
+      }
+    });
+    transCache = out;
+    $('trans-running').hidden = true;
+    renderTranslation(out);
+    $('trans-bar').style.width = '100%';
+    toast('翻译完成');
+  } catch (e) {
+    $('trans-running').hidden = true;
+    $('trans-body').hidden = false;
+    $('trans-body').innerHTML = '<div class="card"><div class="card-title err">' +
+      tr('翻译失败：') + esc(String(e.message || e)) + '</div></div>';
+  }
+}
+
+function renderTranslation(out) {
+  $('trans-empty').hidden = true;
+  $('trans-body').hidden = false;
+  $('trans-body').innerHTML = '<div class="card">' + out.segments.map((s, i) =>
+    `<div class="trans-seg"><div class="trans-no">${String(i + 1).padStart(2, '0')}</div><div class="trans-text">${esc(s.dst)}</div></div>`
+  ).join('') + '</div>';
+  $('trans-actions').hidden = false;
+  $('trans-note').hidden = !out.truncated;
+  $('trans-note').textContent = out.truncated ? tr('已翻译前 30 段（论文过长）。') : '';
+}
+
+function copyTranslation() {
+  if (!transCache) return;
+  copy(transCache.segments.map(s => s.dst).join('\n\n'), '译文已复制');
+}
+
+/* ---------------- 侧栏 / 主题 / 语言 ---------------- */
+function railClose() { $('rail').classList.remove('open'); }
+
+function applyTheme(theme) {
+  const dark = theme === 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'paper');
+  try { localStorage.setItem('docai_theme', dark ? 'dark' : 'paper'); } catch (e) {}
+  $('rail-theme-ic').textContent = dark ? '日' : '夜';
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', dark ? '#16140F' : '#F5F1E8');
+}
+
+function toggleTheme() {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'paper' : 'dark');
+}
+
+function toggleLang() {
+  setLang(getLang() === 'en' ? 'zh' : 'en');
+  document.documentElement.lang = getLang() === 'en' ? 'en' : 'zh-CN';
+  applyLanguage();
+  $('rail-lang-ic').textContent = getLang() === 'en' ? '中' : 'EN';
+  go(cur, false);
+  renderKey();
+  if (lastBanner) setBanner(lastBanner.kind, lastBanner.text, lastBanner.actionText, lastBanner.action);
+  if (lastPdfStats) {
+    $('r-filemeta').textContent = trf('{name} · {pages} 页 · {chars} 字',
+      { name: lastPdfName, pages: lastPdfStats.pages, chars: lastPdfStats.chars });
+    $('r-terms-label').textContent = trf('术语对照（{n} 条）', { n: (lastSummary && lastSummary.terms.length) || 0 });
+    $('btn-refs').textContent = trf('检查这篇论文的参考文献（{n} 条）', { n: lastRefs.length });
+  }
+  refreshRecent();
+  if (transCache) renderTranslation(transCache);
+}
+
+function initRail() {
+  $('rail-handle').addEventListener('click', e => {
+    e.stopPropagation();
+    $('rail').classList.toggle('open');
+  });
+  $('rail-ai').addEventListener('click', () => { railClose(); assistant.open(); });
+  $('rail-theme').addEventListener('click', toggleTheme);
+  $('rail-lang').addEventListener('click', toggleLang);
+  $('rail-translate').addEventListener('click', () => { railClose(); openTransDialog(); });
+  document.addEventListener('click', e => { if (!$('rail').contains(e.target)) railClose(); });
+  $('trans-cancel').addEventListener('click', () => $('trans-modal').classList.remove('on'));
+  $('trans-start').addEventListener('click', startTrans);
+}
+
 /* ================= 学术翻译 ================= */
 async function runTranslate() {
   const text = $('tr-input').value.trim();
   if (text.length < 5) { toast('请先粘贴英文段落'); return; }
-  $('tr-result').innerHTML = '<div class="card center"><div class="spinner"></div><div class="muted" style="margin-top:8px">正在抽取术语并翻译…</div></div>';
+  $('tr-result').innerHTML = '<div class="card center"><div class="spinner"></div><div class="muted" style="margin-top:8px">' + tr('正在抽取术语并翻译…') + '</div></div>';
   try {
     const d = await translate(text);
-    let html = `<div class="card"><div class="card-title">术语表（${d.terms.length}）</div>` +
+    let html = `<div class="card"><div class="card-title">${tr('术语表')}（${d.terms.length}）</div>` +
       d.terms.map(t => `<div class="term-row"><span>${esc(t.en)}</span><span class="zh">${esc(t.zh)}</span></div>`).join('') + '</div>';
     d.segments.forEach(s => {
-      html += `<div class="card"><div class="card-title">译文</div><div class="dst">${esc(s.dst)}</div>
-        <div class="divider"></div><div class="src-label">原文</div><div class="src">${esc(s.src)}</div></div>`;
+      html += `<div class="card"><div class="card-title">${tr('译文')}</div><div class="dst">${esc(s.dst)}</div>
+        <div class="divider"></div><div class="src-label">${tr('原文')}</div><div class="src">${esc(s.src)}</div></div>`;
     });
-    html += `<div class="btn btn-primary" onclick="DA.copyAllTranslate()">复制全部译文</div>`;
+    html += `<div class="btn btn-primary" onclick="DA.copyAllTranslate()">${tr('复制全部译文')}</div>`;
     $('tr-result').innerHTML = html;
     $('tr-result').dataset.full = d.segments.map(s => s.dst).join('\n');
   } catch (e) {
-    $('tr-result').innerHTML = `<div class="card"><div class="card-title err">出错了</div><div class="muted">${esc(e.message)}</div></div>`;
+    $('tr-result').innerHTML = `<div class="card"><div class="card-title err">${tr('出错了')}</div><div class="muted">${esc(e.message)}</div></div>`;
   }
 }
 function copyAllTranslate() { copy($('tr-result').dataset.full || '', '译文已复制'); }
@@ -460,13 +618,13 @@ function copyAllTranslate() { copy($('tr-result').dataset.full || '', '译文已
 async function testKey() {
   const v = ($('key-input').value || '').trim() || store.key;
   if (!v) { toast('请先粘贴 Key'); return; }
-  $('key-test').textContent = '测试中…';
+  $('key-test').textContent = tr('测试中…');
   const r = await verifyKey(v);
   if (r.ok) {
     const models = (r.models || []).filter(m => /deepseek/i.test(m)).slice(0, 3).join('、');
-    $('key-test').innerHTML = '<span class="ok">连接成功</span>' + (models ? '　可用模型：' + models : '');
+    $('key-test').innerHTML = '<span class="ok">' + tr('连接成功') + '</span>' + (models ? tr('可用模型：') + models : '');
   } else {
-    $('key-test').innerHTML = '<span class="err">' + esc(r.error || '校验失败') + '</span>';
+    $('key-test').innerHTML = '<span class="err">' + esc(r.error || tr('校验失败')) + '</span>';
   }
 }
 function saveKey() {
@@ -508,7 +666,7 @@ function saveModel() {
   store.model = v;
   $('model-input').value = '';
   renderModel();
-  toast(v ? '模型名称已保存：' + v : '已恢复默认模型');
+  toast(v ? tr('模型名称已保存：') + v : '已恢复默认模型');
 }
 function renderModel() {
   const el = $('model-input');
@@ -546,6 +704,10 @@ window.DA = {
   }
 };
 
+applyTheme(localStorage.getItem('docai_theme') === 'dark' ? 'dark' : 'paper');
+applyLanguage();
+$('rail-lang-ic').textContent = getLang() === 'en' ? '中' : 'EN';
+initRail();
 renderStats();
 renderKey();
 renderBase();

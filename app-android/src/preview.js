@@ -6,6 +6,8 @@
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.min.js';
 import { createViewer } from '../../shared/preview-core.js';
 import { translateSelection } from './llm.js';
+import { tr, trf } from './i18n.js';
+import * as PenColor from '../../shared/color.js';
 
 const $ = id => document.getElementById(id);
 
@@ -19,6 +21,17 @@ export function createPreview(opts) {
   let pendingSel = null;
   let activeHl = null;
   let resizeTimer = null;
+  let inkOn = false;
+  let inkColor = '#B03A2E';
+  let inkWidth = 0.006;
+  let inkTool = 'pen';
+  let customHex = '#B03A2E';
+  const INK_WIDTHS = [
+    { w: 0.003, px: 4 },
+    { w: 0.006, px: 6 },
+    { w: 0.01, px: 9 },
+    { w: 0.016, px: 13 }
+  ];
 
   function init() {
     viewer = createViewer({
@@ -31,7 +44,7 @@ export function createPreview(opts) {
         $('pv-prev').classList.toggle('off', page <= 1);
         $('pv-next').classList.toggle('off', page >= total);
       },
-      onCountChange: n => { $('pv-count').textContent = n ? n + ' 处标注' : '暂无标注'; },
+      onCountChange: n => { $('pv-count').textContent = n ? n + ' ' + tr('处标注') : tr('暂无标注'); },
       onZoomChange: ({ zoom }) => { $('pv-zoom').textContent = Math.round(zoom * 100) + '%'; },
       onSelection: sel => {
         pendingSel = sel;
@@ -44,6 +57,18 @@ export function createPreview(opts) {
     $('pv-next').addEventListener('click', () => viewer.next());
     $('pv-page').addEventListener('change', e => viewer.goto(e.target.value));
     $('pv-change').addEventListener('click', () => $('pdfpick').click());
+    $('pv-pen').addEventListener('click', toggleInk);
+    $('ink-undo').addEventListener('click', () => { if (!viewer.undoInk()) toast('没有可撤销的笔迹'); });
+    $('ink-erase').addEventListener('click', () => setInkTool(inkTool === 'erase' ? 'pen' : 'erase'));
+    $('ink-done').addEventListener('click', exitInk);
+    $('ink-cancel').addEventListener('click', () => $('ink-modal').classList.remove('on'));
+    $('ink-apply').addEventListener('click', applyCustomColor);
+    $('ink-fix').addEventListener('click', autoDarken);
+    ['ink-h', 'ink-s', 'ink-v'].forEach(id => $(id).addEventListener('input', updateCustomPreview));
+    $('pv-pen').title = tr('批注');
+    restoreInkPrefs();
+    renderInkPalette();
+    renderInkWidths();
     $('pv-zoom-in').addEventListener('click', () => viewer.zoomIn());
     $('pv-zoom-out').addEventListener('click', () => viewer.zoomOut());
     $('pv-zoom').addEventListener('click', () => viewer.resetZoom());
@@ -66,14 +91,15 @@ export function createPreview(opts) {
 
   async function openBytes(bytes, name) {
     const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    exitInk();
     hideSheet();
     hideNote();
     $('pv-name').textContent = name || 'paper.pdf';
-    $('pv-count').textContent = '加载中…';
+    $('pv-count').textContent = tr('加载中…');
     await viewer.open(u8, name || 'paper.pdf');
     const info = viewer.getInfo();
-    $('pv-count').textContent = info.count ? info.count + ' 处标注' : '暂无标注';
-    if (info.count) toast('已恢复 ' + info.count + ' 处标注');
+    $('pv-count').textContent = info.count ? info.count + ' ' + tr('处标注') : tr('暂无标注');
+    if (info.count) toast(tr('已恢复') + ' ' + info.count + ' ' + tr('处标注'));
     return info;
   }
 
@@ -89,11 +115,12 @@ export function createPreview(opts) {
   }
 
   function reset() {
+    exitInk();
     viewer.close();
     hideSheet();
     hideNote();
     $('pv-name').textContent = 'paper.pdf';
-    $('pv-count').textContent = '暂无标注';
+    $('pv-count').textContent = tr('暂无标注');
   }
 
   /* ---------------- 划词操作条 ---------------- */
@@ -116,13 +143,13 @@ export function createPreview(opts) {
     try {
       const out = await translateSelection(text);
       $('pv-sheet-result').innerHTML =
-        '<div class="sheet-label">译文</div><div class="sheet-dst">' + esc(out) + '</div>' +
-        '<div class="row" style="margin-top:10px"><div class="btn btn-ghost" onclick="DA.copyText(' + JSON.stringify(out).replace(/"/g, '&quot;') + ', \'译文已复制\')">复制</div></div>';
+        '<div class="sheet-label">' + tr('译文') + '</div><div class="sheet-dst">' + esc(out) + '</div>' +
+        '<div class="row" style="margin-top:10px"><div class="btn btn-ghost" onclick="DA.copyText(' + JSON.stringify(out).replace(/"/g, '&quot;') + ', \'' + tr('译文已复制') + '\')">' + tr('复制') + '</div></div>';
     } catch (e) {
       const msg = String(e.message || e);
       $('pv-sheet-result').innerHTML =
         '<div class="sheet-err">' + esc(msg) + '</div>' +
-        (/Key/i.test(msg) ? '<div class="btn-mini" style="margin:10px 0 0" onclick="DA.go(\'settings\')">去 API 设置</div>' : '');
+        (/Key/i.test(msg) ? '<div class="btn-mini" style="margin:10px 0 0" onclick="DA.go(\'settings\')">' + tr('去 API 设置') + '</div>' : '');
     } finally {
       $('pv-sheet-actions').hidden = false;
     }
@@ -195,6 +222,150 @@ export function createPreview(opts) {
     copy(viewer.exportMarkdown(), '标注已复制为 Markdown');
   }
 
+  /* ---------------- 画笔批注 ---------------- */
+  function saveInkPrefs() {
+    try {
+      localStorage.setItem('docai_ink_color', inkColor);
+      localStorage.setItem('docai_ink_width', String(inkWidth));
+    } catch (e) {}
+  }
+  function restoreInkPrefs() {
+    try {
+      const c = localStorage.getItem('docai_ink_color');
+      if (c && /^#[0-9a-f]{6}$/i.test(c)) inkColor = c;
+      const w = Number(localStorage.getItem('docai_ink_width'));
+      if (INK_WIDTHS.some(x => Math.abs(x.w - w) < 1e-6)) inkWidth = w;
+    } catch (e) {}
+  }
+
+  function renderInkPalette() {
+    const box = $('ink-colors');
+    if (!box) return;
+    box.innerHTML = '';
+    PenColor.PALETTE.forEach(hex => {
+      const dot = document.createElement('span');
+      dot.className = 'ink-swatch' + (hex === inkColor ? ' on' : '');
+      dot.style.background = hex;
+      dot.title = hex;
+      dot.addEventListener('click', () => {
+        inkColor = hex;
+        viewer.setInkColor(hex);
+        saveInkPrefs();
+        renderInkPalette();
+      });
+      box.appendChild(dot);
+    });
+    const custom = document.createElement('span');
+    custom.className = 'ink-swatch custom' + (PenColor.PALETTE.indexOf(inkColor) === -1 ? ' on' : '');
+    custom.title = tr('自定义画笔颜色');
+    custom.addEventListener('click', openInkColor);
+    box.appendChild(custom);
+  }
+
+  function renderInkWidths() {
+    const box = $('ink-widths');
+    if (!box) return;
+    box.innerHTML = '';
+    INK_WIDTHS.forEach(item => {
+      const btn = document.createElement('span');
+      btn.className = 'ink-width' + (Math.abs(item.w - inkWidth) < 1e-6 ? ' on' : '');
+      const dot = document.createElement('i');
+      dot.style.width = item.px + 'px';
+      dot.style.height = item.px + 'px';
+      btn.appendChild(dot);
+      btn.addEventListener('click', () => {
+        inkWidth = item.w;
+        viewer.setInkWidth(item.w);
+        saveInkPrefs();
+        renderInkWidths();
+      });
+      box.appendChild(btn);
+    });
+  }
+
+  function setInkTool(tool) {
+    inkTool = tool === 'erase' ? 'erase' : 'pen';
+    viewer.setInkTool(inkTool);
+    $('ink-erase').classList.toggle('on', inkTool === 'erase');
+  }
+
+  function toggleInk() {
+    if (!viewer.getInfo().hasDoc) return;
+    if (inkOn) { exitInk(); return; }
+    inkOn = true;
+    viewer.setInkColor(inkColor);
+    viewer.setInkWidth(inkWidth);
+    viewer.setInkMode(true);
+    setInkTool('pen');
+    document.body.classList.add('inking');
+    $('pv-pen').classList.add('on');
+    $('ink-bar').hidden = false;
+    renderInkPalette();
+    renderInkWidths();
+    toast('用手指或鼠标在页面上书写');
+  }
+
+  function exitInk() {
+    inkOn = false;
+    if (viewer) viewer.setInkMode(false);
+    document.body.classList.remove('inking');
+    $('pv-pen').classList.remove('on');
+    $('ink-bar').hidden = true;
+    $('ink-modal').classList.remove('on');
+  }
+
+  function openInkColor() {
+    customHex = inkColor;
+    const hsv = PenColor.hexToHsv(customHex);
+    $('ink-h').value = Math.round(hsv.h);
+    $('ink-s').value = Math.round(hsv.s);
+    $('ink-v').value = Math.round(hsv.v);
+    updateCustomPreview();
+    $('ink-modal').classList.add('on');
+  }
+
+  function updateCustomPreview() {
+    const h = Number($('ink-h').value);
+    const s = Number($('ink-s').value);
+    const v = Number($('ink-v').value);
+    customHex = PenColor.hsvToHex(h, s, v);
+    $('ink-hv').textContent = h;
+    $('ink-sv').textContent = s + '%';
+    $('ink-vv').textContent = v + '%';
+    $('ink-preview-bar').style.background = customHex;
+    const ratio = PenColor.contrastRatio(customHex, '#FFFFFF');
+    const hsl = PenColor.hexToHsl(customHex);
+    $('ink-meta').textContent = trf('{hex} · HSL {h}° {s}% {l}% · 对比度 {r}:1', {
+      hex: customHex,
+      h: Math.round(hsl.h),
+      s: Math.round(hsl.s),
+      l: Math.round(hsl.l),
+      r: ratio.toFixed(2)
+    });
+    const low = ratio < 4.5;
+    $('ink-warn').textContent = low ? tr('对比度不足 WCAG 4.5:1') : '';
+    $('ink-fix').hidden = !low;
+    $('ink-apply').classList.toggle('off', low);
+  }
+
+  function autoDarken() {
+    customHex = PenColor.ensureContrast(customHex, '#FFFFFF', 4.5);
+    const hsv = PenColor.hexToHsv(customHex);
+    $('ink-h').value = Math.round(hsv.h);
+    $('ink-s').value = Math.round(hsv.s);
+    $('ink-v').value = Math.round(hsv.v);
+    updateCustomPreview();
+  }
+
+  function applyCustomColor() {
+    if ($('ink-apply').classList.contains('off')) return;
+    inkColor = customHex;
+    viewer.setInkColor(inkColor);
+    saveInkPrefs();
+    renderInkPalette();
+    $('ink-modal').classList.remove('on');
+  }
+
   init();
-  return { openFile, openBytes, reset, hideSheet, pageImage };
+  return { openFile, openBytes, reset, hideSheet, pageImage, exitInk };
 }

@@ -4,6 +4,7 @@
  */
 import { buildQueries, platformLinks } from '../../shared/search-links.js';
 import { searchPapers } from './llm.js';
+import { tr, trf } from './i18n.js';
 
 const $ = id => document.getElementById(id);
 const CACHE_KEY = 'docai_sim_v1:';
@@ -24,7 +25,7 @@ export function createSimilarSearch(opts) {
     $('sim-query').value = q.cn;
     renderPlatforms(q.cn);
     $('sim-results').innerHTML = '';
-    $('sim-status').textContent = title ? '' : '生成速读后，可按标题检索相关论文';
+    $('sim-status').textContent = title ? '' : tr('生成速读后，可按标题检索相关论文');
     currentList = [];
     searched = false;
   }
@@ -41,7 +42,7 @@ export function createSimilarSearch(opts) {
 
   function renderPlatforms(q) {
     $('sim-platforms').innerHTML = platformLinks(q).map(l =>
-      `<span class="sim-platform" data-url="${esc(l.url)}"><b>${esc(l.name)}</b><span>${esc(l.note)}</span></span>`
+      `<span class="sim-platform" data-url="${esc(l.url)}"><b>${esc(tr(l.name))}</b><span>${esc(tr(l.note))}</span></span>`
     ).join('');
   }
 
@@ -70,20 +71,20 @@ export function createSimilarSearch(opts) {
       const cached = cacheGet(key);
       if (cached) { currentList = cached; renderResults(); return; }
     }
-    $('sim-status').textContent = '检索中…';
+    $('sim-status').textContent = tr('检索中…');
     $('sim-results').innerHTML = '';
     try {
       const list = await searchPapers(title);
       currentList = list;
       if (!list.length) {
-        $('sim-status').textContent = '没有找到相关论文，可修改检索词后使用上方国内平台链接';
+        $('sim-status').textContent = tr('没有找到相关论文，可修改检索词后使用上方国内平台链接');
         return;
       }
       localStorage.setItem(key, JSON.stringify({ t: Date.now(), list: list }));
-      $('sim-status').textContent = '共 ' + list.length + ' 篇 · 按标题检索（OpenAlex / Crossref）';
+      $('sim-status').textContent = trf('共 {n} 篇 · 按标题检索（OpenAlex / Crossref）', { n: list.length });
       renderResults();
     } catch (e) {
-      $('sim-status').textContent = '检索失败：' + String(e.message || e).slice(0, 70) + '，可直接使用上方平台链接';
+      $('sim-status').textContent = tr('检索失败：') + String(e.message || e).slice(0, 70) + '，' + tr('可直接使用上方平台链接');
     }
   }
 
@@ -96,8 +97,8 @@ export function createSimilarSearch(opts) {
         <div class="sim-meta">${esc(meta)}</div>
         ${p.abstract ? `<div class="sim-abs" id="sim-abs-${i}" hidden>${esc(p.abstract)}</div>` : ''}
         <div class="sim-actions">
-          ${p.abstract ? `<span class="btn-mini" data-act="abs" data-i="${i}">摘要</span>` : ''}
-          <span class="btn-mini" data-act="open" data-i="${i}">打开</span>
+          ${p.abstract ? `<span class="btn-mini" data-act="abs" data-i="${i}">${tr('摘要')}</span>` : ''}
+          <span class="btn-mini" data-act="open" data-i="${i}">${tr('打开')}</span>
           ${p.pdf ? `<span class="btn-mini" data-act="pdf" data-i="${i}">PDF</span>` : ''}
         </div>
       </div>`;
@@ -126,7 +127,7 @@ export function createSimilarSearch(opts) {
         const box = document.getElementById('sim-abs-' + btn.dataset.i);
         if (box) {
           box.hidden = !box.hidden;
-          btn.textContent = box.hidden ? '摘要' : '收起';
+          btn.textContent = box.hidden ? tr('摘要') : tr('收起');
         }
       } else if (act === 'open') {
         openLink(p.url);
@@ -141,7 +142,7 @@ export function createSimilarSearch(opts) {
     render: render,
     reset: reset,
     onTabOpen: () => {
-      if (!title) { $('sim-status').textContent = '生成速读后，可按标题检索相关论文'; return; }
+      if (!title) { $('sim-status').textContent = tr('生成速读后，可按标题检索相关论文'); return; }
       if (!searched) { searched = true; run(false); }
     }
   };

@@ -4,6 +4,7 @@
  * 支持选中文字与图片；图片需要视觉模型（如 gpt-4o、qwen-vl），文本模型会报错。
  */
 import { askAssistant, store } from './llm.js';
+import { tr } from './i18n.js';
 
 const $ = id => document.getElementById(id);
 
@@ -18,7 +19,6 @@ export function createAssistant(opts) {
   let busy = false;
 
   function init() {
-    $('ai-fab').addEventListener('click', () => open());
     $('ai-close').addEventListener('click', close);
     $('ai-send').addEventListener('click', send);
     $('ai-input').addEventListener('keydown', e => {
@@ -143,13 +143,13 @@ export function createAssistant(opts) {
     $('ai-empty').hidden = true;
     $('ai-send').classList.add('off');
     busy = true;
-    const typing = bubble('assistant', '思考中…');
+    const typing = bubble('assistant', tr('思考中…'));
     typing.classList.add('typing');
 
     try {
       const answer = await askAssistant({ question: q, context: ctx, image: img, history: history.slice(-8) });
       typing.remove();
-      bubble('assistant', answer || '（没有返回内容）');
+      bubble('assistant', answer || tr('（没有返回内容）'));
       const userText = (ctx ? '【选中内容】' + ctx + '\n\n' : '') +
         '【问题】' + (q || '请解释这张图片的内容') + (img ? '\n【附图片】' : '');
       history.push({ role: 'user', content: userText });
@@ -160,7 +160,7 @@ export function createAssistant(opts) {
       renderChip();
     } catch (e) {
       typing.remove();
-      bubble('assistant', '出错了：' + String(e.message || e));
+      bubble('assistant', tr('出错了：') + String(e.message || e));
     } finally {
       busy = false;
       $('ai-send').classList.remove('off');
@@ -170,7 +170,7 @@ export function createAssistant(opts) {
   function clearAll() {
     history = [];
     $('ai-msgs').innerHTML =
-      '<div class="ai-empty" id="ai-empty">选中文字后点「问 AI」，或直接输入问题。也可以附一张图（需要支持视觉的模型，如 gpt-4o / qwen-vl）。</div>';
+      '<div class="ai-empty" id="ai-empty">' + tr('选中文字后点「问 AI」，或直接输入问题。也可以附一张图（需要支持视觉的模型，如 gpt-4o / qwen-vl）。') + '</div>';
     contextText = '';
     imageData = '';
     renderChip();

@@ -52,11 +52,31 @@
       var doc = load(fp);
       var item = {
         id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        type: 'highlight',
         page: Number(ann.page) || 1,
         rects: Array.isArray(ann.rects) ? ann.rects : [],
         text: String(ann.text || '').slice(0, 2000),
         note: String(ann.note || '').slice(0, 1000),
         color: ann.color || 'yellow',
+        createdAt: new Date().toISOString()
+      };
+      doc.items.push(item);
+      doc.name = ann.name || doc.name;
+      doc.updatedAt = item.createdAt;
+      save(fp, doc);
+      return item;
+    }
+
+    /** 画笔墨迹：points 为相对页面的 [x, y]（0–1），width 为相对页宽的线宽 */
+    function addInk(fp, ann) {
+      var doc = load(fp);
+      var item = {
+        id: 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        type: 'ink',
+        page: Number(ann.page) || 1,
+        points: Array.isArray(ann.points) ? ann.points : [],
+        color: String(ann.color || '#B03A2E'),
+        width: Number(ann.width) || 0.006,
         createdAt: new Date().toISOString()
       };
       doc.items.push(item);
@@ -93,7 +113,7 @@
     function clear(fp) { storage.removeItem(key(fp)); }
     function count(fp) { return load(fp).items.length; }
 
-    return { load: load, save: save, add: add, update: update, remove: remove, clear: clear, count: count };
+    return { load: load, save: save, add: add, addInk: addInk, update: update, remove: remove, clear: clear, count: count };
   }
 
   /* ---------------- Markdown 导出 ---------------- */
@@ -117,6 +137,10 @@
         page = it.page;
         lines.push('', '## 第 ' + page + ' 页');
       }
+      if (it.type === 'ink') {
+        lines.push('- 墨迹：' + String(it.color || ''));
+        return;
+      }
       lines.push('- 高亮：' + String(it.text || '').replace(/\s+/g, ' ').trim());
       if (it.note) lines.push('  - 备注：' + String(it.note).replace(/\s+/g, ' ').trim());
     });
@@ -132,6 +156,7 @@
     var store = storage ? createStore(storage) : null;
 
     var MIN_ZOOM = 1, MAX_ZOOM = 3, ZOOM_STEP = 0.25;
+    var SVG_NS = 'http://www.w3.org/2000/svg';
 
     var state = {
       pdf: null,
@@ -146,6 +171,13 @@
       hlLayer: null,
       scrollEl: null,
       zoom: 1,
+      inkLayer: null,
+      pageAspect: 1.414,
+      inkMode: false,
+      inkTool: 'pen',
+      inkColor: '#B03A2E',
+      inkWidth: 0.006,
+      stroke: null,
       renderToken: 0,
       destroyed: false
     };
@@ -210,6 +242,11 @@
 
     if (typeof document !== 'undefined') {
       document.addEventListener('selectionchange', onSelectionChange);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pointermove', onInkMove);
+      window.addEventListener('pointerup', onInkUp);
+      window.addEventListener('pointercancel', onInkUp);
     }
 
     /* ---- 缩放 ---- */
@@ -294,6 +331,7 @@
 
     /* ---- 点击高亮（命中检测；高亮层 pointer-events:none，不影响划词） ---- */
     function onPageClick(e) {
+      if (state.inkMode) return;
       var sel = window.getSelection();
       if (sel && !sel.isCollapsed) return;
       var box = state.pageEl.getBoundingClientRect();
@@ -311,6 +349,169 @@
           }
         }
       }
+    }
+
+    /* ---- 画笔批注 ---- */
+    function inkPath(points) {
+      var W = 1000, H = 1000 * state.pageAspect;
+      var pts = points || [];
+      if (!pts.length) return '';
+      function X(p) { return (p[0] * W).toFixed(1); }
+      function Y(p) { return (p[1] * H).toFixed(1); }
+      if (pts.length < 3) {
+        return 'M ' + X(pts[0]) + ' ' + Y(pts[0]) +
+          (pts[1] ? ' L ' + X(pts[1]) + ' ' + Y(pts[1]) : '');
+      }
+      // 以相邻点中点作为曲线端点、原始点作为控制点，得到平滑笔迹
+      var d = 'M ' + X(pts[0]) + ' ' + Y(pts[0]);
+      for (var i = 1; i < pts.length - 1; i++) {
+        var mx = (pts[i][0] + pts[i + 1][0]) / 2;
+        var my = (pts[i][1] + pts[i + 1][1]) / 2;
+        d += ' Q ' + X(pts[i]) + ' ' + Y(pts[i]) + ' ' + (mx * W).toFixed(1) + ' ' + (my * H).toFixed(1);
+      }
+      var last = pts[pts.length - 1];
+      d += ' L ' + X(last) + ' ' + Y(last);
+      return d;
+    }
+
+    function renderInk() {
+      if (!state.inkLayer) return;
+      var layer = state.inkLayer;
+      layer.innerHTML = '';
+      state.annotations.forEach(function (a) {
+        if (a.type !== 'ink' || a.page !== state.page) return;
+        var path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('d', inkPath(a.points));
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', a.color || '#B03A2E');
+        path.setAttribute('stroke-width', String((a.width || 0.006) * 1000));
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-linejoin', 'round');
+        path.setAttribute('data-ink-id', a.id);
+        layer.appendChild(path);
+      });
+    }
+
+    function pointFromEvent(e) {
+      var rect = state.inkLayer.getBoundingClientRect();
+      return [
+        clamp01((e.clientX - rect.left) / rect.width),
+        clamp01((e.clientY - rect.top) / rect.height)
+      ];
+    }
+
+    function updateStrokePath() {
+      if (state.stroke && state.stroke.el) {
+        state.stroke.el.setAttribute('d', inkPath(state.stroke.points));
+      }
+    }
+
+    function onInkDown(e) {
+      if (!state.inkMode || !state.inkLayer) return;
+      e.preventDefault();
+      var pt = pointFromEvent(e);
+      if (state.inkTool === 'erase') { eraseAt(pt[0], pt[1]); return; }
+      try { state.inkLayer.setPointerCapture(e.pointerId); } catch (err) {}
+      var path = document.createElementNS(SVG_NS, 'path');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', state.inkColor);
+      path.setAttribute('stroke-width', String(state.inkWidth * 1000));
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      state.inkLayer.appendChild(path);
+      state.stroke = {
+        pointerId: e.pointerId,
+        points: [pt],
+        el: path,
+        color: state.inkColor,
+        width: state.inkWidth
+      };
+      updateStrokePath();
+    }
+
+    function onInkMove(e) {
+      if (!state.stroke || e.pointerId !== state.stroke.pointerId) return;
+      var pt = pointFromEvent(e);
+      var pts = state.stroke.points;
+      var last = pts[pts.length - 1];
+      var dx = pt[0] - last[0], dy = pt[1] - last[1];
+      if (dx * dx + dy * dy < 0.000004) return;
+      pts.push(pt);
+      if (pts.length > 600) pts.length = 600;
+      updateStrokePath();
+    }
+
+    function onInkUp(e) {
+      if (!state.stroke || e.pointerId !== state.stroke.pointerId) return;
+      var stroke = state.stroke;
+      state.stroke = null;
+      if (stroke.el && stroke.el.parentNode) stroke.el.parentNode.removeChild(stroke.el);
+      if (stroke.points.length < 2 || !store) return;
+      var item = store.addInk(state.fp, {
+        page: state.page,
+        points: stroke.points,
+        color: stroke.color,
+        width: stroke.width,
+        name: state.name
+      });
+      state.annotations.push(item);
+      renderInk();
+      emit('onCountChange', state.annotations.length);
+    }
+
+    function distToSegment(px, py, x1, y1, x2, y2) {
+      var dx = x2 - x1, dy = y2 - y1;
+      var len = dx * dx + dy * dy;
+      if (!len) return Math.hypot(px - x1, py - y1);
+      var t = ((px - x1) * dx + (py - y1) * dy) / len;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+    }
+
+    function eraseAt(x, y) {
+      if (!store) return;
+      var W = 1000, H = 1000 * state.pageAspect;
+      var px = x * W, py = y * H;
+      var hit = null;
+      for (var i = state.annotations.length - 1; i >= 0; i--) {
+        var a = state.annotations[i];
+        if (a.type !== 'ink' || a.page !== state.page) continue;
+        var thr = Math.max(7, (a.width || 0.006) * 1000 * 0.6 + 7);
+        var pts = a.points || [];
+        for (var j = 1; j < pts.length; j++) {
+          if (distToSegment(px, py, pts[j - 1][0] * W, pts[j - 1][1] * H,
+            pts[j][0] * W, pts[j][1] * H) <= thr) { hit = a; break; }
+        }
+        if (hit) break;
+      }
+      if (!hit) return;
+      store.remove(state.fp, hit.id);
+      state.annotations = state.annotations.filter(function (z) { return z.id !== hit.id; });
+      renderInk();
+      emit('onCountChange', state.annotations.length);
+    }
+
+    function undoInk() {
+      if (!store) return false;
+      var list = state.annotations.filter(function (a) { return a.type === 'ink' && a.page === state.page; });
+      if (!list.length) return false;
+      var last = list[list.length - 1];
+      store.remove(state.fp, last.id);
+      state.annotations = state.annotations.filter(function (z) { return z.id !== last.id; });
+      renderInk();
+      emit('onCountChange', state.annotations.length);
+      return true;
+    }
+
+    function setInkMode(on) {
+      state.inkMode = !!on;
+      if (state.pageEl) state.pageEl.classList.toggle('inking', state.inkMode);
+    }
+    function setInkTool(tool) { state.inkTool = tool === 'erase' ? 'erase' : 'pen'; }
+    function setInkColor(hex) { if (/^#[0-9a-f]{6}$/i.test(String(hex))) state.inkColor = hex; }
+    function setInkWidth(w) { var n = Number(w); if (n > 0 && n < 0.1) state.inkWidth = n; }
+    function getInk() {
+      return { mode: state.inkMode, tool: state.inkTool, color: state.inkColor, width: state.inkWidth };
     }
 
     /* ---- 渲染当前页 ---- */
@@ -345,10 +546,20 @@
       pageEl.appendChild(hlLayer);
       pageEl.appendChild(textLayer);
 
+      state.pageAspect = base.height / base.width;
+      var inkLayer = document.createElementNS(SVG_NS, 'svg');
+      inkLayer.setAttribute('class', 'pdf-ink-layer');
+      inkLayer.setAttribute('preserveAspectRatio', 'none');
+      inkLayer.setAttribute('viewBox', '0 0 1000 ' + (1000 * state.pageAspect).toFixed(2));
+      inkLayer.addEventListener('pointerdown', onInkDown);
+      pageEl.appendChild(inkLayer);
+      if (state.inkMode) pageEl.classList.add('inking');
+
       state.pageEl = pageEl;
       state.canvas = canvas;
       state.textLayer = textLayer;
       state.hlLayer = hlLayer;
+      state.inkLayer = inkLayer;
       state.scrollEl = scroll;
       scroll.appendChild(pageEl);
       mount.appendChild(scroll);
@@ -385,6 +596,7 @@
       }
 
       paintHighlights();
+      renderInk();
       emit('onPageChange', { page: state.page, total: state.total });
       page.cleanup();
     }
@@ -476,7 +688,9 @@
       state.pdf = null;
       state.page = 1;
       state.total = 0;
-      state.pageEl = state.canvas = state.textLayer = state.hlLayer = state.scrollEl = null;
+      state.pageEl = state.canvas = state.textLayer = state.hlLayer = state.scrollEl = state.inkLayer = null;
+      state.inkMode = false;
+      state.stroke = null;
       state.annotations = [];
       state.fp = '';
       state.name = '';
@@ -486,6 +700,11 @@
     function destroy() {
       state.destroyed = true;
       if (typeof document !== 'undefined') document.removeEventListener('selectionchange', onSelectionChange);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pointermove', onInkMove);
+        window.removeEventListener('pointerup', onInkUp);
+        window.removeEventListener('pointercancel', onInkUp);
+      }
       clearTimeout(selTimer);
       close();
     }
@@ -519,6 +738,12 @@
       zoomOut: zoomOut,
       resetZoom: resetZoom,
       getZoom: getZoom,
+      setInkMode: setInkMode,
+      setInkTool: setInkTool,
+      setInkColor: setInkColor,
+      setInkWidth: setInkWidth,
+      undoInk: undoInk,
+      getInk: getInk,
       getInfo: getInfo,
       getSelection: captureSelection
     };
