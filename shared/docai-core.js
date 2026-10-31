@@ -164,6 +164,26 @@ async function askAssistant(opts) {
   });
 }
 
+/** 全文翻译：先抽一次术语，再分段翻译（最多 30 段） */
+async function translateDocument(text, opts) {
+  const o = opts || {};
+  const src = String(text || '').replace(/\r/g, '').trim();
+  if (src.replace(/\s/g, '').length < 100) throw new Error('可读文本过少');
+  const terms = await extractTerms(src, o);
+  const termLine = terms.map(t => t.en + '=' + t.zh).join('; ');
+  const all = common.chunkText(src, 1800, 0);
+  const chunks = all.slice(0, 30);
+  const segments = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const dst = await chat([
+      { role: 'system', content: common.TRANSLATE_SYSTEM },
+      { role: 'user', content: common.translatePrompt(termLine, chunks[i]) }
+    ], { maxTokens: 2600, temperature: 0.1, apiKey: o.apiKey, baseUrl: o.baseUrl, model: o.model });
+    segments.push({ src: chunks[i], dst: dst });
+  }
+  return { terms: terms.slice(0, 20), segments: segments, truncated: all.length > chunks.length };
+}
+
 async function verifyKey(apiKey, baseUrl) {
   const key = String(apiKey || '').trim();
   if (!key) return { ok: false, error: '未填写 Key' };
@@ -192,5 +212,5 @@ module.exports = {
   cleanText: refseg.cleanText,
   extractReferenceSection: refseg.extractReferenceSection,
   looksScanned: refseg.looksScanned,
-  summarize, translate, extractTerms, translateSelection, askAssistant
+  summarize, translate, extractTerms, translateSelection, askAssistant, translateDocument
 };

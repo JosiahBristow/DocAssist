@@ -178,6 +178,8 @@
       inkColor: '#B03A2E',
       inkWidth: 0.006,
       stroke: null,
+      pointers: {},
+      pan: null,
       renderToken: 0,
       destroyed: false
     };
@@ -246,7 +248,7 @@
     if (typeof window !== 'undefined') {
       window.addEventListener('pointermove', onInkMove);
       window.addEventListener('pointerup', onInkUp);
-      window.addEventListener('pointercancel', onInkUp);
+      window.addEventListener('pointercancel', onInkCancel);
     }
 
     /* ---- 缩放 ---- */
@@ -277,6 +279,7 @@
     }
     if (mount && typeof document !== 'undefined') {
       mount.addEventListener('touchstart', function (e) {
+        if (state.inkMode) return;
         if (e.touches.length !== 2 || !state.pageEl) return;
         var box = state.pageEl.getBoundingClientRect();
         var mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - box.left;
@@ -286,6 +289,7 @@
       }, { passive: true });
 
       mount.addEventListener('touchmove', function (e) {
+        if (state.inkMode) return;
         if (!pinch || e.touches.length !== 2) return;
         e.preventDefault();
         var z = clampZoom(pinch.zoom * (touchDist(e.touches) / pinch.dist));
@@ -409,6 +413,15 @@
     function onInkDown(e) {
       if (!state.inkMode || !state.inkLayer) return;
       e.preventDefault();
+      state.pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+
+      // 双指：平移页面（批注模式下替代滚动/缩放）
+      if (Object.keys(state.pointers).length >= 2) {
+        cancelStroke();
+        state.pan = averagePointer();
+        return;
+      }
+
       var pt = pointFromEvent(e);
       if (state.inkTool === 'erase') { eraseAt(pt[0], pt[1]); return; }
       try { state.inkLayer.setPointerCapture(e.pointerId); } catch (err) {}
@@ -429,19 +442,81 @@
       updateStrokePath();
     }
 
-    function onInkMove(e) {
-      if (!state.stroke || e.pointerId !== state.stroke.pointerId) return;
-      var pt = pointFromEvent(e);
+    function averagePointer() {
+      var ids = Object.keys(state.pointers);
+      if (!ids.length) return null;
+      var x = 0, y = 0;
+      for (var i = 0; i < ids.length; i++) {
+        x += state.pointers[ids[i]].x;
+        y += state.pointers[ids[i]].y;
+      }
+      return { x: x / ids.length, y: y / ids.length };
+    }
+
+    function verticalScroller() {
+      var el = mount;
+      while (el && el !== document.body) {
+        var s = getComputedStyle(el);
+        if (/(auto|scroll|overlay|hidden)/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 1) return el;
+        el = el.parentElement;
+      }
+      return document.scrollingElement || document.documentElement;
+    }
+
+    function cancelStroke() {
+      if (!state.stroke) return;
+      if (state.stroke.el && state.stroke.el.parentNode) {
+        state.stroke.el.parentNode.removeChild(state.stroke.el);
+      }
+      state.stroke = null;
+    }
+
+    function addStrokePoint(ev) {
+      var pt = pointFromEvent(ev);
       var pts = state.stroke.points;
       var last = pts[pts.length - 1];
       var dx = pt[0] - last[0], dy = pt[1] - last[1];
-      if (dx * dx + dy * dy < 0.000004) return;
+      if (dx * dx + dy * dy < 0.0000015) return;
       pts.push(pt);
-      if (pts.length > 600) pts.length = 600;
+      if (pts.length > 2000) pts.length = 2000;
+    }
+
+    function onInkMove(e) {
+      if (!state.pointers[e.pointerId] && !state.stroke) return;
+      if (state.pointers[e.pointerId]) {
+        state.pointers[e.pointerId].x = e.clientX;
+        state.pointers[e.pointerId].y = e.clientY;
+      }
+
+      // 双指移动页面
+      if (state.pan) {
+        if (Object.keys(state.pointers).length < 2) { state.pan = null; return; }
+        e.preventDefault();
+        var avg = averagePointer();
+        var dy = avg.y - state.pan.y;
+        var dx = avg.x - state.pan.x;
+        var vp = verticalScroller();
+        if (vp) vp.scrollTop -= dy;
+        if (state.scrollEl) state.scrollEl.scrollLeft -= dx;
+        state.pan = avg;
+        return;
+      }
+
+      if (!state.stroke || e.pointerId !== state.stroke.pointerId) return;
+      e.preventDefault();
+      // 取所有合并事件，低采样设备也能画出连续笔迹
+      var evs = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : null;
+      if (!evs || !evs.length) evs = [e];
+      for (var i = 0; i < evs.length; i++) addStrokePoint(evs[i]);
       updateStrokePath();
     }
 
     function onInkUp(e) {
+      delete state.pointers[e.pointerId];
+      if (state.pan) {
+        if (Object.keys(state.pointers).length < 2) state.pan = null;
+        return;
+      }
       if (!state.stroke || e.pointerId !== state.stroke.pointerId) return;
       var stroke = state.stroke;
       state.stroke = null;
@@ -457,6 +532,12 @@
       state.annotations.push(item);
       renderInk();
       emit('onCountChange', state.annotations.length);
+    }
+
+    function onInkCancel(e) {
+      delete state.pointers[e.pointerId];
+      if (Object.keys(state.pointers).length < 2) state.pan = null;
+      if (state.stroke && e.pointerId === state.stroke.pointerId) cancelStroke();
     }
 
     function distToSegment(px, py, x1, y1, x2, y2) {
@@ -552,6 +633,9 @@
       inkLayer.setAttribute('preserveAspectRatio', 'none');
       inkLayer.setAttribute('viewBox', '0 0 1000 ' + (1000 * state.pageAspect).toFixed(2));
       inkLayer.addEventListener('pointerdown', onInkDown);
+      inkLayer.addEventListener('contextmenu', function (ev) {
+        if (state.inkMode) ev.preventDefault();
+      });
       pageEl.appendChild(inkLayer);
       if (state.inkMode) pageEl.classList.add('inking');
 
@@ -691,6 +775,8 @@
       state.pageEl = state.canvas = state.textLayer = state.hlLayer = state.scrollEl = state.inkLayer = null;
       state.inkMode = false;
       state.stroke = null;
+      state.pointers = {};
+      state.pan = null;
       state.annotations = [];
       state.fp = '';
       state.name = '';
@@ -703,7 +789,7 @@
       if (typeof window !== 'undefined') {
         window.removeEventListener('pointermove', onInkMove);
         window.removeEventListener('pointerup', onInkUp);
-        window.removeEventListener('pointercancel', onInkUp);
+        window.removeEventListener('pointercancel', onInkCancel);
       }
       clearTimeout(selTimer);
       close();

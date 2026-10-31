@@ -302,7 +302,7 @@ export function createPreview(opts) {
     $('ink-bar').hidden = false;
     renderInkPalette();
     renderInkWidths();
-    toast('用手指或鼠标在页面上书写');
+    toast('单指书写，双指移动页面');
   }
 
   function exitInk() {

@@ -170,6 +170,16 @@ const server = http.createServer(async (req, res) => {
     return res.end(fs.readFileSync(path.join(__dirname, '..', 'shared', 'library.js')));
   }
 
+  if (u.pathname === '/shared/color.js') {
+    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+    return res.end(fs.readFileSync(path.join(__dirname, '..', 'shared', 'color.js')));
+  }
+
+  if (u.pathname === '/shared/ui-i18n.js') {
+    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+    return res.end(fs.readFileSync(path.join(__dirname, '..', 'shared', 'ui-i18n.js')));
+  }
+
   if (u.pathname === '/api/searchPapers') {
     const q = String(u.query.q || '').trim();
     if (!q) return send(res, 400, { ok: false, error: '缺少检索词' });
@@ -290,6 +300,34 @@ const server = http.createServer(async (req, res) => {
         baseUrl: body.baseUrl || undefined
       });
       return send(res, 200, { ok: true, data: { text: text } });
+    } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
+  }
+
+  if (u.pathname === '/api/translatePaper' && req.method === 'POST') {
+    try {
+      const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+      const apiKey = String(body.apiKey || '').trim();
+      if (MOCK && !apiKey) {
+        return send(res, 200, {
+          ok: true, mock: true,
+          data: {
+            terms: [],
+            segments: [{ src: '', dst: '（示例译文）配置 Key 后，这里会返回整篇论文的分段译文。' }],
+            truncated: false
+          }
+        });
+      }
+      let text = String(body.text || '');
+      if (!text && body.pdfBase64) {
+        const pdf = await core.extractPdfText(Buffer.from(body.pdfBase64, 'base64'));
+        if (pdf.scanned) return send(res, 200, { ok: false, error: '扫描版 PDF 没有文字层，无法翻译' });
+        text = pdf.text;
+      }
+      if (!text) return send(res, 400, { ok: false, error: '缺少论文内容' });
+      const out = await core.translateDocument(text, {
+        apiKey: apiKey || undefined, baseUrl: body.baseUrl || undefined, model: body.model
+      });
+      return send(res, 200, { ok: true, data: out });
     } catch (e) { return send(res, 500, { ok: false, error: e.message }); }
   }
 

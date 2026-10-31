@@ -201,9 +201,11 @@ textarea::placeholder,input::placeholder{color:var(--ink3)}
 .pdf-hl{position:absolute;background:rgba(240,214,120,.5);border-radius:1px}
 .pdf-hl.has-note{background:rgba(192,72,44,.22);border-bottom:1.5px solid var(--accent)}
 .pdf-ink-layer{position:absolute;inset:0;z-index:3;pointer-events:none}
-.pdf-page.inking .pdf-ink-layer{pointer-events:auto;cursor:crosshair}
+.pdf-page.inking{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.pdf-page.inking .pdf-ink-layer{pointer-events:auto;cursor:crosshair;touch-action:none}
 .pdf-page.inking .pdf-text-layer{pointer-events:none}
 body.inking .rail{display:none}
+body.inking main{overflow:hidden}
 body.inking #screen-read{padding-bottom:160px}
 
 .pv-pen{font-family:Georgia,"Songti SC","Noto Serif CJK SC",serif;font-size:13px}
@@ -503,7 +505,7 @@ body.inking #screen-read{padding-bottom:160px}
 
       <div id="tab-orig">
         <div class="pv-mount" id="pv-mount"></div>
-        <div class="pv-hint">长按选词 → 翻译 / 高亮；点高亮处加备注</div>
+        <div class="pv-hint">长按选词 → 翻译 / 高亮；点高亮处加备注；批注时单指书写、双指移动</div>
       </div>
 
       <div id="tab-quick" hidden>
