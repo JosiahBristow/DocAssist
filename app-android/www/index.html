@@ -160,6 +160,14 @@
   .sim-abs{font-size:12px;line-height:1.7;color:#2A3550;background:#F8FAFE;border-radius:8px;padding:8px 10px;margin-top:8px;max-height:180px;overflow:auto}
   .sim-actions{margin-top:8px}
 
+  .recent-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .recent-row:last-child{border-bottom:none}
+  .recent-ic{width:32px;height:32px;border-radius:8px;background:var(--pri-soft);display:flex;align-items:center;justify-content:center;font-size:15px;flex:0 0 auto}
+  .recent-body{flex:1;min-width:0}
+  .recent-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .recent-meta{font-size:10.5px;color:var(--ink3);margin-top:2px}
+  .recent-del{font-size:10.5px;color:var(--ink3);padding:4px 6px;flex:0 0 auto}
+
   /* ---------- 悬浮 AI 助手 ---------- */
   .ai-fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));width:52px;height:52px;border-radius:50%;
     background:linear-gradient(135deg,#1B3A8C,#2B6CF6);color:#fff;font-size:23px;display:flex;align-items:center;justify-content:center;
@@ -251,6 +259,11 @@
       <div class="entry-arrow">›</div>
     </div>
 
+    <div class="card" id="recent-card" hidden>
+      <div class="card-title">最近打开</div>
+      <div id="recent-list"></div>
+    </div>
+
     <div class="card entry" onclick="DA.go('cite')">
       <div class="entry-icon">🧾</div>
       <div class="entry-body">
@@ -306,6 +319,12 @@
         <div class="btn btn-primary" onclick="document.getElementById('pdfpick').click()">选择 PDF 文件</div>
         <input class="file-input" type="file" id="pdfpick" accept="application/pdf" onchange="DA.onPickFile(event)">
       </div>
+
+      <div class="card" id="recent-read-card" hidden>
+        <div class="card-title">最近打开</div>
+        <div id="recent-read"></div>
+      </div>
+
       <div class="card">
         <div class="card-title">一个页面，两种读法</div>
         <div class="muted">原文：逐页阅读、划词翻译、高亮备注（预览与高亮不需要 Key）<br>速读：要点 / 结构 / 术语，并自动联动参考文献校对（需要 Key）</div>

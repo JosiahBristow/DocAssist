@@ -64,17 +64,28 @@ export function createPreview(opts) {
     });
   }
 
-  async function openFile(file) {
-    if (!file) throw new Error('没有选择文件');
+  async function openBytes(bytes, name) {
+    const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     hideSheet();
     hideNote();
-    $('pv-name').textContent = file.name || 'paper.pdf';
+    $('pv-name').textContent = name || 'paper.pdf';
     $('pv-count').textContent = '加载中…';
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    await viewer.open(bytes, file.name || 'paper.pdf');
-    const n = viewer.getInfo().count;
-    $('pv-count').textContent = n ? n + ' 处标注' : '暂无标注';
-    if (n) toast('已恢复 ' + n + ' 处标注');
+    await viewer.open(u8, name || 'paper.pdf');
+    const info = viewer.getInfo();
+    $('pv-count').textContent = info.count ? info.count + ' 处标注' : '暂无标注';
+    if (info.count) toast('已恢复 ' + info.count + ' 处标注');
+    return info;
+  }
+
+  async function openFile(file) {
+    if (!file) throw new Error('没有选择文件');
+    const u8 = new Uint8Array(await file.arrayBuffer());
+    if (opts.onBytes) {
+      try {
+        Promise.resolve(opts.onBytes(u8, file.name || 'paper.pdf', file.size)).catch(function () {});
+      } catch (e) { /* 存储失败不影响打开 */ }
+    }
+    return openBytes(u8, file.name || 'paper.pdf');
   }
 
   function reset() {
@@ -185,5 +196,5 @@ export function createPreview(opts) {
   }
 
   init();
-  return { openFile, reset, hideSheet, pageImage };
+  return { openFile, openBytes, reset, hideSheet, pageImage };
 }

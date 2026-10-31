@@ -165,6 +165,11 @@ const server = http.createServer(async (req, res) => {
     return res.end(fs.readFileSync(path.join(__dirname, '..', 'shared', 'search-links.js')));
   }
 
+  if (u.pathname === '/shared/library.js') {
+    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+    return res.end(fs.readFileSync(path.join(__dirname, '..', 'shared', 'library.js')));
+  }
+
   if (u.pathname === '/api/searchPapers') {
     const q = String(u.query.q || '').trim();
     if (!q) return send(res, 400, { ok: false, error: '缺少检索词' });

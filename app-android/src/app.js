@@ -10,6 +10,8 @@ import { summarize, translate, verifyKey, store } from './llm.js';
 import { createPreview } from './preview.js';
 import { createSimilarSearch } from './search.js';
 import { createAssistant } from './assistant.js';
+import { fingerprintFromBytes, createStore } from '../../shared/preview-core.js';
+import * as library from '../../shared/library.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -205,6 +207,7 @@ let lastPdfName = '';
 let lastPdfFile = null;
 let readToken = 0;
 let summaryDone = false;
+const annoStore = createStore(localStorage);
 
 function setBanner(kind, text, actionText, action) {
   const bar = $('read-banner');
@@ -252,8 +255,12 @@ async function onPickFile(e) {
   e.target.value = '';
   if (!file) return;
   if (file.size > 25 * 1024 * 1024) { toast('文件请小于 25MB'); return; }
+  openPaper(file);
+}
 
+async function openPaper(file) {
   const token = ++readToken;
+  go('read');
   lastPdfName = file.name || 'paper.pdf';
   lastPdfFile = file;
 
@@ -272,6 +279,7 @@ async function onPickFile(e) {
   }
   if (token !== readToken) return;
   readTab('orig');
+  refreshRecent();
 
   if (!store.key) {
     setBanner('warn', '未配置 Key：原文、高亮、格式校对可用；速读与划词翻译需要 Key', '去设置', () => go('settings'));
@@ -353,6 +361,77 @@ function copySummary() {
   const txt = ['【一句话】' + s, '【问题】' + $('r-problem').textContent, '【方法】' + $('r-method').textContent,
     '【数据】' + $('r-data').textContent].join('\n');
   copy(txt, '速读结果已复制');
+}
+
+/* ---------------- 最近打开（本地论文库） ---------------- */
+let recentBusy = false;
+
+async function refreshRecent() {
+  if (recentBusy) return;
+  recentBusy = true;
+  let items = [];
+  try { items = await library.list(); } catch (e) { items = []; }
+  recentBusy = false;
+
+  const homeCard = $('recent-card');
+  const readCard = $('recent-read-card');
+  if (!homeCard && !readCard) return;
+
+  const row = (m, withDel) => {
+    const n = annoStore.count(m.fp);
+    return `<div class="recent-row" data-fp="${esc(m.fp)}">
+      <div class="recent-ic">📄</div>
+      <div class="recent-body">
+        <div class="recent-name">${esc(m.name)}</div>
+        <div class="recent-meta">${esc(library.relativeTime(m.openedAt))}${n ? ' · ' + n + ' 处标注' : ''}</div>
+      </div>
+      ${withDel ? '<span class="recent-del" data-del="1">删除</span>' : ''}
+      <div class="entry-arrow">›</div>
+    </div>`;
+  };
+
+  if (homeCard) {
+    homeCard.hidden = !items.length;
+    $('recent-list').innerHTML = items.slice(0, 3).map(m => row(m, false)).join('');
+  }
+  if (readCard) {
+    readCard.hidden = !items.length;
+    $('recent-read').innerHTML = items.slice(0, 6).map(m => row(m, true)).join('');
+  }
+}
+
+function initRecent() {
+  ['recent-list', 'recent-read'].forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener('click', e => {
+      const rowEl = e.target.closest('.recent-row');
+      if (!rowEl) return;
+      const fp = rowEl.dataset.fp;
+      if (e.target.closest('[data-del]')) { deleteRecent(fp); return; }
+      openRecent(fp);
+    });
+  });
+}
+
+async function openRecent(fp) {
+  let rec = null;
+  try { rec = await library.get(fp); } catch (e) {}
+  if (!rec || !rec.bytes) {
+    toast('这条记录已失效，请重新选择文件');
+    refreshRecent();
+    return;
+  }
+  try { await library.touch(fp); } catch (e) {}
+  const bytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
+  const file = new File([bytes], rec.name || 'paper.pdf', { type: 'application/pdf' });
+  openPaper(file);
+}
+
+async function deleteRecent(fp) {
+  try { await library.remove(fp); } catch (e) {}
+  toast('已删除这条记录');
+  refreshRecent();
 }
 
 /* ================= 学术翻译 ================= */
@@ -439,7 +518,15 @@ function renderModel() {
 /* ================= 论文阅读预览 + AI 助手 ================= */
 let preview;
 let assistant;
-preview = createPreview({ toast, esc, copy, onAskAI: text => assistant.askAbout(text) });
+preview = createPreview({
+  toast, esc, copy,
+  onAskAI: text => assistant.askAbout(text),
+  onBytes: (bytes, name, size) => {
+    const fp = fingerprintFromBytes(name, bytes);
+    return library.save({ fp: fp, name: name, size: size, bytes: bytes, openedAt: Date.now() })
+      .then(refreshRecent);
+  }
+});
 assistant = createAssistant({ toast, esc, go, getPageImage: () => preview.pageImage() });
 const similar = createSimilarSearch({ toast, esc, copy });
 
@@ -463,4 +550,6 @@ renderStats();
 renderKey();
 renderBase();
 renderModel();
+initRecent();
+refreshRecent();
 go('home', false);

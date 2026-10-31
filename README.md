@@ -19,6 +19,7 @@ docassist/
 │   ├── refconvert.js       外文体例识别与转国标（ACL/IEEE → GB/T 7714）
 │   ├── preview-core.js     原文预览内核（渲染/选区/高亮/标注存储，Android 与网页共用）
 │   ├── search-links.js     相似论文：平台检索链接 + OpenAlex/Crossref 结果归一化
+│   ├── library.js          本地论文库（IndexedDB）：保存最近打开的 PDF 与元数据
 │   └── docai-core.js       大模型调用、PDF 解析、参考文献段抽取
 ├── app-android/            Android 客户端（Capacitor 壳，可打包成 APK）
 │   ├── src/                页面逻辑 + 原文预览 + AI 助手 + pdf.js 封装 + 浏览器端模型调用
@@ -121,6 +122,10 @@ npm run sync                # 改过 shared/ 后必须执行
   选中文字作为上下文随问题发送。面板内可「引用选中」「当前页」（把当前 PDF 页截图作为图片），也可从相册附图。
   图片提问需要支持视觉的 OpenAI 兼容模型（如 gpt-4o、qwen-vl），DeepSeek 文本模型不支持；
   模型名称可在「API 设置」中修改。对话保留最近 8 轮上下文，可一键清空。小程序端暂未提供。
+- **最近打开（Android / 本地预览网页）**：打开过的 PDF 与元数据存入本机 IndexedDB，重启应用后
+  首页和阅读页的「最近打开」可直接再次打开，高亮标注与速读结果按文件指纹恢复；
+  显示文件名、打开时间与标注数，支持单条删除。最多保留 6 篇 / 总计 120MB，超出自动清理最久未打开的。
+  论文只存在本机，不上传服务器；小程序端暂未提供。
 - **双端同源**：`shared/` 是唯一实现，小程序（WXML）与 Android（HTML）各自做界面，
   规则引擎、外文体例转换、提示词两端完全一致，结果可交叉验证。
 - **外文体例转国标（`shared/refconvert.js`）**：识别 ACL/EMNLP 与 IEEE 体例（年份在末尾、作者用 and 连接、

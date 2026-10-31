@@ -151,6 +151,14 @@
   .sim-abs{font-size:11.5px;line-height:1.7;color:#2A3550;background:#F8FAFE;border-radius:8px;padding:8px 10px;margin-top:8px;max-height:170px;overflow:auto}
   .sim-actions{margin-top:8px}
 
+  .recent-row{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .recent-row:last-child{border-bottom:none}
+  .recent-ic{width:30px;height:30px;border-radius:8px;background:var(--pri-soft);display:flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 auto}
+  .recent-body{flex:1;min-width:0}
+  .recent-name{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .recent-meta{font-size:10px;color:var(--ink3);margin-top:2px}
+  .recent-del{font-size:10px;color:var(--ink3);padding:4px 5px;flex:0 0 auto}
+
   /* 悬浮 AI 助手 */
   .ai-fab{position:absolute;right:14px;bottom:74px;width:48px;height:48px;border-radius:50%;
     background:linear-gradient(135deg,#1B3A8C,#2B6CF6);color:#fff;font-size:21px;display:flex;align-items:center;justify-content:center;
@@ -247,6 +255,11 @@
       <div class="entry-arrow">›</div>
     </div>
 
+    <div class="card" id="recent-card" style="display:none">
+      <div class="card-title">最近打开</div>
+      <div id="recent-list"></div>
+    </div>
+
     <div class="card entry" onclick="go('cite')">
       <div class="entry-icon">🧾</div>
       <div class="entry-body">
@@ -304,6 +317,12 @@
         <div style="height:8px"></div>
         <div class="btn btn-ghost" onclick="readTextMode()">改为粘贴文本</div>
       </div>
+
+      <div class="card" id="recent-read-card" style="display:none">
+        <div class="card-title">最近打开</div>
+        <div id="recent-read"></div>
+      </div>
+
       <div class="card">
         <div class="card-title">一个页面，两种读法</div>
         <div class="muted">原文：逐页阅读、划词翻译、高亮备注（预览与高亮不需要 Key）<br>速读：要点 / 结构 / 术语，并自动联动参考文献校对（需要 Key）</div>
@@ -563,6 +582,7 @@
   <p class="step">✅ 论文原文预览：划词翻译 / 高亮备注 / 导出 Markdown</p>
   <p class="step">✅ 相似论文：国内平台检索链接 + OpenAlex/Crossref 结果</p>
   <p class="step">✅ 悬浮 AI 助手：划词提问 / 当前页截图 / 多轮对话</p>
+  <p class="step">✅ 最近打开：本机保存 PDF，重启后直接打开</p>
   <p class="step">✅ 摘要/翻译链路（需 .env 里的 DeepSeek Key）</p>
   <h3>启动</h3>
   <p><code>npm install</code> → <code>npm run preview</code> → 打开 <code>127.0.0.1:5178</code></p>
@@ -573,6 +593,7 @@
 <script src="/vendor/pdf.min.js"></script>
 <script src="/shared/preview-core.js"></script>
 <script src="/shared/search-links.js"></script>
+<script src="/shared/library.js"></script>
 <script>
 const state = { refs: [], summary: null, mock: false };
 
@@ -709,6 +730,12 @@ $('pdfpick').onchange = async e => {
     const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(f);
   });
   lastFileB64 = b64;
+  try {
+    const buf = await f.arrayBuffer();
+    const fp = PreviewCore.fingerprintFromBytes(f.name, new Uint8Array(buf));
+    PaperLibrary.save({ fp: fp, name: f.name, size: f.size, bytes: buf, openedAt: Date.now() })
+      .then(refreshRecent).catch(() => {});
+  } catch (e) { /* 存储失败不影响打开 */ }
   startRead(f.name, null, true);
 };
 function readTextMode(){
@@ -829,6 +856,82 @@ function goCiteFromPdf(){
   $('cite-input').value = state.refs.map((s,i)=>`[${i+1}] ${s.replace(/^\s*\[\d+\]\s*/,'')}`).join('\n');
   go('cite'); runCite();
 }
+
+/* ---------- 最近打开 ---------- */
+const recentAnno = PreviewCore.createStore(localStorage);
+let recentBusy = false;
+
+async function refreshRecent(){
+  if (recentBusy) return;
+  recentBusy = true;
+  let items = [];
+  try { items = await PaperLibrary.list(); } catch (e) {}
+  recentBusy = false;
+  const homeCard = $('recent-card'), readCard = $('recent-read-card');
+  if (!homeCard && !readCard) return;
+  const row = (m, withDel) => {
+    const n = recentAnno.count(m.fp);
+    return `<div class="recent-row" data-fp="${esc(m.fp)}">
+      <div class="recent-ic">📄</div>
+      <div class="recent-body">
+        <div class="recent-name">${esc(m.name)}</div>
+        <div class="recent-meta">${esc(PaperLibrary.relativeTime(m.openedAt))}${n ? ' · ' + n + ' 处标注' : ''}</div>
+      </div>
+      ${withDel ? '<span class="recent-del" data-del="1">删除</span>' : ''}
+      <div class="entry-arrow">›</div>
+    </div>`;
+  };
+  if (homeCard) {
+    homeCard.style.display = items.length ? 'block' : 'none';
+    $('recent-list').innerHTML = items.slice(0, 3).map(m => row(m, false)).join('');
+  }
+  if (readCard) {
+    readCard.style.display = items.length ? 'block' : 'none';
+    $('recent-read').innerHTML = items.slice(0, 6).map(m => row(m, true)).join('');
+  }
+}
+function initRecent(){
+  ['recent-list', 'recent-read'].forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener('click', e => {
+      const rowEl = e.target.closest('.recent-row');
+      if (!rowEl) return;
+      const fp = rowEl.dataset.fp;
+      if (e.target.closest('[data-del]')) { deleteRecent(fp); return; }
+      openRecent(fp);
+    });
+  });
+}
+async function openRecent(fp){
+  let rec = null;
+  try { rec = await PaperLibrary.get(fp); } catch (e) {}
+  if (!rec || !rec.bytes) {
+    toast('这条记录已失效，请重新选择文件');
+    refreshRecent();
+    return;
+  }
+  try { await PaperLibrary.touch(fp); } catch (e) {}
+  const bytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
+  lastFileB64 = bytesToB64(bytes);
+  go('read');
+  startRead(rec.name || 'paper.pdf', null, true);
+}
+async function deleteRecent(fp){
+  try { await PaperLibrary.remove(fp); } catch (e) {}
+  toast('已删除这条记录');
+  refreshRecent();
+}
+function bytesToB64(bytes){
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+initRecent();
+refreshRecent();
 
 /* ---------- 格式校对 ---------- */
 const SAMPLE = `[1] 周志华. 机器学习[M]. 北京: 清华大学出版社, 2016.
