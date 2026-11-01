@@ -342,13 +342,15 @@
       });
     }
 
-    /* ---- 点击高亮（命中检测；高亮层 pointer-events:none，不影响划词） ---- */
+    /* ---- 点击高亮 + 左右翻页（高亮层 pointer-events:none，不影响划词） ---- */
     function onPageClick(e) {
       if (state.inkMode) return;
       var box = state.pageEl.getBoundingClientRect();
       if (!box.width || !box.height) return;
       var x = (e.clientX - box.left) / box.width;
       var y = (e.clientY - box.top) / box.height;
+
+      // 高亮优先：点在高亮上只打开备注，不翻页
       for (var i = state.annotations.length - 1; i >= 0; i--) {
         var a = state.annotations[i];
         if (a.type === 'ink' || a.page !== state.page) continue;
@@ -360,6 +362,15 @@
           }
         }
       }
+
+      // 有选区时不翻页，避免选字结束的点击误触
+      var sel = window.getSelection && window.getSelection();
+      if (sel && !sel.isCollapsed) return;
+      // 放大后左右点击用于查看内容，不翻页
+      if (state.zoom > 1.01) return;
+
+      if (x < 0.22) emit('onPageSide', { side: 'prev', page: state.page });
+      else if (x > 0.78) emit('onPageSide', { side: 'next', page: state.page });
     }
 
     /* ---- 画笔批注 ---- */
@@ -657,7 +668,8 @@
       state.scrollEl = scroll;
       scroll.appendChild(pageEl);
       mount.appendChild(scroll);
-      pageEl.addEventListener('click', onPageClick);
+      // 监听整个滚动区，页面两侧留白也能点击翻页
+      scroll.addEventListener('click', onPageClick);
 
       var ctx = canvas.getContext('2d');
       ctx.scale(dpr, dpr);

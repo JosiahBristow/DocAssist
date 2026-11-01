@@ -52,7 +52,19 @@ export function createPreview(opts) {
         pendingSel = sel;
         showQuick(sel);
       },
-      onHighlightClick: ann => showNote(ann)
+      onHighlightClick: ann => showNote(ann),
+      onPageSide: ({ side }) => {
+        hideQuick();
+        pendingSel = null;
+        const info = viewer.getInfo();
+        if (side === 'prev') {
+          if (info.page <= 1) { toast('已经是第一页'); return; }
+          viewer.prev();
+        } else if (side === 'next') {
+          if (info.page >= info.total) { toast('已经是最后一页'); return; }
+          viewer.next();
+        }
+      }
     });
 
     $('pv-prev').addEventListener('click', () => viewer.prev());

@@ -1,6 +1,6 @@
 {
   "name": "docassist",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "private": true,
   "description": "文献助手 Android 端：论文阅读、标注、参考文献格式校对与学术翻译",
   "scripts": {

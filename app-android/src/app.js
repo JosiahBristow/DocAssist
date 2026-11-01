@@ -63,6 +63,41 @@ window.addEventListener('popstate', () => {
   go(prev, false);
 });
 
+/* ---------------- 左边缘右滑返回 ---------------- */
+const EDGE_SWIPE = 28;      // 起始触点距屏幕左边缘的最大距离
+const SWIPE_DIST = 70;      // 水平位移阈值
+let edgeSwipe = null;
+
+function overlayOpen() {
+  return !!document.querySelector('.modal.on, .sheet.on');
+}
+
+document.addEventListener('touchstart', e => {
+  edgeSwipe = null;
+  if (cur === 'home' || e.touches.length !== 1) return;
+  // 批注模式与弹层打开时不抢手势
+  if (document.body.classList.contains('inking') || overlayOpen()) return;
+  const t = e.touches[0];
+  if (t.clientX <= EDGE_SWIPE) edgeSwipe = { x: t.clientX, y: t.clientY };
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (!edgeSwipe || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  const dx = t.clientX - edgeSwipe.x;
+  const dy = t.clientY - edgeSwipe.y;
+  if (dx > SWIPE_DIST && Math.abs(dy) < 55 && dx > Math.abs(dy) * 1.4) {
+    edgeSwipe = null;
+    if (e.cancelable) e.preventDefault();
+    back();
+  } else if (dx < -20 || Math.abs(dy) > 70) {
+    edgeSwipe = null;
+  }
+}, { passive: false });
+
+document.addEventListener('touchend', () => { edgeSwipe = null; }, { passive: true });
+document.addEventListener('touchcancel', () => { edgeSwipe = null; }, { passive: true });
+
 /* ---------------- 使用统计 ---------------- */
 const STAT_KEY = 'docai_stats';
 function stats() { return JSON.parse(localStorage.getItem(STAT_KEY) || '{"papers":0,"fixed":0}'); }

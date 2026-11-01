@@ -1,6 +1,6 @@
 {
   "name": "docassist-android",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "private": true,
   "description": "文献助手 Android 端（Capacitor 壳，复用 shared/ 规则与预览内核）",
   "scripts": {
